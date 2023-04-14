@@ -25,6 +25,12 @@ distribution stipulated on the MRF's interaction or association parameters."><!-
       <ul class="navbar-nav me-auto"><li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/introduction.html">Introducing bgms</a>
+  </div>
+</li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
@@ -65,79 +71,66 @@ distribution stipulated on the MRF's interaction or association parameters.</p>
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>x</dt>
-<dd><p>An <code>no_persons</code> by <code>no_nodes</code> matrix containing the
-categories coded as non-negative integers (i.e., coded
-<code>0, 1, ..., no_categories</code>) for <code>no_persons</code> independent
-observations on <code>no_nodes</code> variables in the network or graph.</p></dd>
+<dd><p>A matrix with <code>n</code> rows and <code>p</code> columns, containing binary
+and ordinal variables for <code>n</code> independent observations and <code>p</code>
+variables in the network. Variables are recoded as non-negative integers
+<code>(0, 1, ..., m)</code> if not done already. Unobserved categories are
+collapsed into other categories after recoding. See <code>reformat_data</code> for
+details.</p></dd>
 
 
 <dt>precision</dt>
-<dd><p>A number between zero and one. The prior precision that is
-desired for edge selection. Equal to one minus the desired type-1 error.
-Defaults to <code>.975</code>.</p></dd>
+<dd><p>A value between 0 and 1 representing the desired precision
+for edge selection, equal to one minus the desired type-1 error rate. Default
+is 0.975.</p></dd>
 
 
 <dt>convergence_criterion</dt>
-<dd><p>The convergence criterion for the
-pseudoposterior values in the EM algorithm. Defaults to
-<code>sqrt(.Machine$double.eps)</code>.</p></dd>
+<dd><p>The criterion for the pseudoposterior values'
+convergence in the EM algorithm. Default is <code>sqrt(.Machine$double.eps)</code>.</p></dd>
 
 
 <dt>theta</dt>
-<dd><p>The prior inclusion probability. The value <code>theta = 0.5</code>,
-in combination with <code>hierarchical = FALSE</code> stipulates a uniform prior
-on the space of network structures.</p></dd>
+<dd><p>The prior inclusion probability. A value of <code>0.5</code>, combined
+with <code>hierarchical = FALSE</code>, specifies a uniform prior on the network
+structures' space.</p></dd>
 
 
 <dt>hierarchical</dt>
-<dd><p>Logical. If TRUE, a beta prior distribution is
-imposed on the prior inclusion probability <code>theta</code> with
-hyperparameters <code>alpha</code> and <code>beta</code>. A uniform prior on the
-inclusion probability, a beta with <code>alpha = beta = 1</code>, stipulates a
-uniform prior on network structure complexity.</p></dd>
+<dd><p>If TRUE, a beta prior distribution with hyperparameters
+<code>indicator_alpha, indicator_beta</code> is imposed on the prior inclusion
+probability <code>theta</code>. A uniform prior on inclusion probability, using a
+beta with <code>indicator_alpha = indicator_beta = 1</code>, specifies a uniform
+prior on network structure complexity.</p></dd>
 
 
 <dt>indicator_alpha, indicator_beta</dt>
-<dd><p>The hyperparameters of the beta prior
-distribution stipulated on the prior inclusion probability <code>theta</code> if
-<code>hierarchical = TRUE</code>. Default to <code>1</code>.</p></dd>
+<dd><p>Hyperparameters for the beta prior
+distribution on the prior inclusion probability theta when
+<code>hierarchical = TRUE</code>. Default is 1.</p></dd>
 
 
 <dt>maximum_iterations</dt>
-<dd><p>The maximum number of EM iterations used. Defaults
-to <code>1e3</code>. A warning is issued if procedure has not converged in
-<code>maximum_iterations</code> iterations.</p></dd>
+<dd><p>Maximum number of EM iterations used. Default is
+1e3. A warning appears if the procedure hasn't converged within the maximum
+number of iterations.</p></dd>
 
 
 <dt>threshold_alpha, threshold_beta</dt>
-<dd><p>The shape parameters of the Beta-prime
-prior for the thresholds. Defaults to <code>1</code>.</p></dd>
+<dd><p>Shape parameters for the Beta-prime
+prior on thresholds. Default is 1.</p>
+<ul><li><p><code>interactions</code>: A matrix with <code>p</code> rows and <code>p</code> columns,
+containing the pairwise association estimates in the off-diagonal elements.</p></li>
+<li><p><code>gamma</code>: A matrix with <code>p</code> rows and <code>p</code> columns,
+containing the expected values of edge inclusion variables (local posterior
+probabilities of edge inclusion).</p></li>
+<li><p><code>thresholds</code>: A matrix with <code>p</code> rows and <code>max(m)</code>
+columns, containing the category thresholds for each node.</p></li>
+<li><p><code>theta</code> (if <code>hierarchical == TRUE</code>): A numeric value
+representing the modal estimate of the prior inclusion probability.</p></li>
+</ul></dd>
 
 </dl></div>
-    <div class="section level2">
-    <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    
-
-<p>A list containing the <code>no_nodes</code> by <code>no_nodes</code> matrices</p>
-<p></p>
-<p><code>interactions</code> and <code>gamma</code>, the <code>no_nodes</code> by</p>
-<p></p>
-<p><code>no_categories</code> matrix <code>thresholds</code>, and, if</p>
-<p></p>
-<p><code>hierarchical == TRUE</code>, a numeric valued <code>theta</code>. The matrix</p>
-<p></p>
-<p><code>interactions</code> is a numeric matrix with pairwise
-  association estimates on the off-diagonal elements. The matrix <code>gamma</code></p>
-
-
-<p>contains the expected values of edge inclusion variables (i.e., the local
-  posterior probability of edge inclusion. The matrix <code>thresholds</code></p>
-
-
-<p>contains the category thresholds per node. If <code>hierarchical = TRUE</code>,
-  the modal estimate of the prior inclusion probability <code>theta</code> is also
-  provided.</p>
-    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

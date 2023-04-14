@@ -27,6 +27,12 @@ ordinal variables."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/aj
       <ul class="navbar-nav me-auto"><li class="active nav-item">
   <a class="nav-link" href="../reference/index.html">Reference</a>
 </li>
+<li class="nav-item dropdown">
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/introduction.html">Introducing bgms</a>
+  </div>
+</li>
       </ul><form class="form-inline my-2 my-lg-0" role="search">
         <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off"></form>
 
@@ -67,23 +73,23 @@ ordinal variables.</p>
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <dl><dt>x</dt>
-<dd><p>An <code>n</code> by <code>p</code> matrix containing the binary and ordinal
-variables for <code>n</code> independent observations on <code>p</code> variables in the
-network or graph. If not done already, <code>bgms</code> recodes the variables as
-non-negative integers (i.e., <code>0, 1, ..., m</code>). Unobserved categories are
-collapsed into other categories after recoding. See <code>reformat_data</code> for
-details.</p></dd>
+<dd><p>A matrix with <code>n</code> rows and <code>p</code> columns, containing binary
+and ordinal variables for <code>n</code> independent observations and <code>p</code>
+variables in the network. Variables are recoded as non-negative integers
+<code>(0, 1, ..., m)</code> if not done already. Unobserved categories are
+collapsed into other categories after recoding. See
+<code>reformat_data</code> for details.</p></dd>
 
 
 <dt>iter</dt>
 <dd><p>The number of iterations of the Gibbs sampler. Defaults to
-<code>1e4</code>. This usually gives a good idea. But for good estimates it is
-recommended to run the procedure for <code>1e5</code> iterations.</p></dd>
+<code>1e4</code>. For better estimates, it is recommended to run the procedure for
+at least <code>1e5</code> iterations.</p></dd>
 
 
 <dt>burnin</dt>
 <dd><p>The number of burnin iterations. The output of the Gibbs
-sampler is stored after <code>burnin</code> iterations.</p></dd>
+sampler is stored after burnin iterations.</p></dd>
 
 
 <dt>interaction_prior</dt>
@@ -104,39 +110,38 @@ prior for the thresholds. Defaults to <code>1</code>.</p></dd>
 
 
 <dt>save</dt>
-<dd><p>Should the function collect and return all samples from the
-Gibbs sampler (<code>save = TRUE</code>)? Or should it only return the
-(model-averaged) posterior means (<code>save = FALSE</code>)? Defaults to
-<code>FALSE</code>.</p></dd>
+<dd><p>Should the function collect and return all samples from the Gibbs
+sampler (<code>save = TRUE</code>)? Or should it only return the (model-averaged)
+posterior means (<code>save = FALSE</code>)? Defaults to <code>FALSE</code>.</p></dd>
 
 
 <dt>display_progress</dt>
 <dd><p>Should the function show a progress bar
 (<code>display_progress = TRUE</code>)? Or not (<code>display_progress = FALSE</code>)?
-Defauls to <code>TRUE</code>.</p></dd>
+Defaults to <code>TRUE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     
 
-<p>If <code>save = FALSE</code> (the default), a list containing the
-<code>p</code> by <code>p</code> matrices <code>gamma</code> and <code>interactions</code>, and the
-<code>p</code> by <code>max(no_categories)</code> matrix <code>thresholds</code>. The matrix
-<code>gamma</code> is a numeric matrix that contains the inclusion probabilities
-for individual edges. The matrices <code>interactions</code> and <code>thresholds</code></p>
-
-
-<p>are numeric matrices that contain the (model or structure-averaged) posterior
-means (EAP estimates) of the pairwise associations, and category thresholds,
-respectively. If <code>save = TRUE</code>, a list containing the
-<code>iter</code> by <code>p *  (p - 1) / 2</code> matrices <code>samples.gamma</code></p>
-
-
-<p>and <code>samples.interactions</code>, and the <code>iter</code> by
-<code>sum(no_categories)</code> matrix <code>samples.thresholds</code>. These contain the
-parameter states at every iteration of the Gibbs sampler. Column averages
-offer the EAP estimates.</p>
+<p>If <code>save = FALSE</code> (the default), the result is a list containing
+the following matrices:</p><ul><li><p><code>gamma</code>: A matrix with <code>p</code> rows and <code>p</code> columns,
+containing posterior inclusion probabilities of individual edges.</p></li>
+<li><p><code>interactions</code>: A matrix with <code>p</code> rows and <code>p</code> columns,
+containing model-averaged posterior means of the pairwise associations.</p></li>
+<li><p><code>thresholds</code>: A matrix with <code>p</code> rows and <code>max(m)</code>
+columns, containing model-averaged category thresholds.</p></li>
+</ul><p>If <code>save = TRUE</code>, the result is a list containing:</p><ul><li><p><code>samples.gamma</code>: A matrix with <code>iter</code> rows and
+<code>p * (p - 1) / 2</code> columns, containing the edge inclusion indicators from
+every iteration of the Gibbs sampler.</p></li>
+<li><p><code>samples.interactions</code>: A matrix with <code>iter</code> rows and
+<code>p * (p - 1) / 2</code> columns, containing parameter states from every
+iteration of the Gibbs sampler for the pairwise associations.</p></li>
+<li><p><code>samples.thresholds</code>: A matrix with <code>iter</code> rows and
+<code>sum(m)</code> columns, containing parameter states from every iteration of
+the Gibbs sampler for the category thresholds.</p></li>
+</ul><p>Column averages of these matrices provide the model-averaged posterior means.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
