@@ -2,6 +2,7 @@
 #include <Rcpp.h>
 #include <progress.hpp>
 #include <progress_bar.hpp>
+#include "ParameterPrior.h"
 using namespace Rcpp;
 
 // ----------------------------------------------------------------------------|
@@ -284,6 +285,64 @@ List metropolis_interactions_unitinfo(NumericMatrix interactions,
   return List::create(Named("interactions") = interactions,
                       Named("rest_matrix") = rest_matrix);
 }
+
+List metropolis_interactions_unitinfo(NumericMatrix interactions,
+                                      NumericMatrix thresholds,
+                                      IntegerMatrix gamma,
+                                      IntegerMatrix observations,
+                                      IntegerVector no_categories,
+                                      NumericMatrix proposal_sd,
+                                      NumericMatrix unit_info,
+                                      int no_persons,
+                                      int no_nodes,
+                                      NumericMatrix rest_matrix,
+                                      const ParameterPrior& prior) {
+  //NumericMatrix theta // no_nodes x no_nodes
+  double proposed_state;
+  double current_state;
+  double log_prob;
+  double U;
+
+  for(int node1 = 0; node1 <  no_nodes - 1; node1++) {
+    for(int node2 = node1 + 1; node2 <  no_nodes; node2++)
+      if(gamma(node1, node2) == 1) {
+        current_state = interactions(node1, node2);
+        proposed_state = R::rnorm(current_state, proposal_sd(node1, node2));
+
+        log_prob = log_pseudolikelihood_ratio(interactions,
+                                              thresholds,
+                                              observations,
+                                              no_categories,
+                                              no_persons,
+                                              node1,
+                                              node2,
+                                              proposed_state,
+                                              current_state,
+                                              rest_matrix);
+
+        log_prob += prior.log_pdf(proposed_state, node1, node2);
+        log_prob -= prior.log_pdf(current_state,  node1, node2);
+
+        U = R::unif_rand();
+        if(std::log(U) < log_prob) {
+          double state_diff = proposed_state - current_state;
+          interactions(node1, node2) = proposed_state;
+          interactions(node2, node1) = proposed_state;
+
+          //Update the matrix of rest scores
+          for(int person = 0; person < no_persons; person++) {
+            rest_matrix(person, node1) += observations(person, node2) *
+              state_diff;
+            rest_matrix(person, node2) += observations(person, node1) *
+              state_diff;
+          }
+        }
+      }
+  }
+  return List::create(Named("interactions") = interactions,
+                      Named("rest_matrix") = rest_matrix);
+}
+
 
 // ----------------------------------------------------------------------------|
 // MH algorithm to sample from the cull-conditional of an edge + interaction
