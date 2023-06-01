@@ -56,6 +56,40 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// log_pseudolikelihood_ratio
+double log_pseudolikelihood_ratio(NumericMatrix interactions, NumericMatrix thresholds, IntegerMatrix observations, IntegerVector no_categories, int no_persons, int node1, int node2, double proposed_state, double current_state, NumericMatrix rest_matrix);
+RcppExport SEXP _bgms_log_pseudolikelihood_ratio(SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP observationsSEXP, SEXP no_categoriesSEXP, SEXP no_personsSEXP, SEXP node1SEXP, SEXP node2SEXP, SEXP proposed_stateSEXP, SEXP current_stateSEXP, SEXP rest_matrixSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type interactions(interactionsSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< int >::type node1(node1SEXP);
+    Rcpp::traits::input_parameter< int >::type node2(node2SEXP);
+    Rcpp::traits::input_parameter< double >::type proposed_state(proposed_stateSEXP);
+    Rcpp::traits::input_parameter< double >::type current_state(current_stateSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type rest_matrix(rest_matrixSEXP);
+    rcpp_result_gen = Rcpp::wrap(log_pseudolikelihood_ratio(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix));
+    return rcpp_result_gen;
+END_RCPP
+}
+// create_rest_matrix
+NumericMatrix create_rest_matrix(const int no_persons, const int no_nodes, const IntegerMatrix observations, const NumericMatrix interactions);
+RcppExport SEXP _bgms_create_rest_matrix(SEXP no_personsSEXP, SEXP no_nodesSEXP, SEXP observationsSEXP, SEXP interactionsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< const int >::type no_nodes(no_nodesSEXP);
+    Rcpp::traits::input_parameter< const IntegerMatrix >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type interactions(interactionsSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_rest_matrix(no_persons, no_nodes, observations, interactions));
+    return rcpp_result_gen;
+END_RCPP
+}
 // gibbs_sampler
 List gibbs_sampler(IntegerMatrix observations, IntegerMatrix gamma, NumericMatrix interactions, NumericMatrix thresholds, IntegerVector no_categories, String interaction_prior, double cauchy_scale, NumericMatrix unit_info, NumericMatrix proposal_sd, IntegerMatrix Index, int iter, int burnin, IntegerMatrix n_cat_obs, double threshold_alpha, double threshold_beta, bool save, bool display_progress);
 RcppExport SEXP _bgms_gibbs_sampler(SEXP observationsSEXP, SEXP gammaSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP no_categoriesSEXP, SEXP interaction_priorSEXP, SEXP cauchy_scaleSEXP, SEXP unit_infoSEXP, SEXP proposal_sdSEXP, SEXP IndexSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP n_cat_obsSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP saveSEXP, SEXP display_progressSEXP) {
@@ -315,11 +349,33 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// log_pseudolikelihood_ratio_parallel
+double log_pseudolikelihood_ratio_parallel(const NumericMatrix interactions, const NumericMatrix thresholds, const IntegerMatrix observations, const IntegerVector no_categories, const int no_persons, const int node1, const int node2, const double proposed_state, const double current_state, const NumericMatrix rest_matrix);
+RcppExport SEXP _bgms_log_pseudolikelihood_ratio_parallel(SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP observationsSEXP, SEXP no_categoriesSEXP, SEXP no_personsSEXP, SEXP node1SEXP, SEXP node2SEXP, SEXP proposed_stateSEXP, SEXP current_stateSEXP, SEXP rest_matrixSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix >::type interactions(interactionsSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< const IntegerMatrix >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< const int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< const int >::type node1(node1SEXP);
+    Rcpp::traits::input_parameter< const int >::type node2(node2SEXP);
+    Rcpp::traits::input_parameter< const double >::type proposed_state(proposed_stateSEXP);
+    Rcpp::traits::input_parameter< const double >::type current_state(current_stateSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type rest_matrix(rest_matrixSEXP);
+    rcpp_result_gen = Rcpp::wrap(log_pseudolikelihood_ratio_parallel(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bgms_sample_omrf_gibbs", (DL_FUNC) &_bgms_sample_omrf_gibbs, 6},
     {"_bgms_em_gamma", (DL_FUNC) &_bgms_em_gamma, 5},
     {"_bgms_em_interaction_var", (DL_FUNC) &_bgms_em_interaction_var, 5},
+    {"_bgms_log_pseudolikelihood_ratio", (DL_FUNC) &_bgms_log_pseudolikelihood_ratio, 10},
+    {"_bgms_create_rest_matrix", (DL_FUNC) &_bgms_create_rest_matrix, 4},
     {"_bgms_gibbs_sampler", (DL_FUNC) &_bgms_gibbs_sampler, 17},
     {"_bgms_gradient_thresholds_pseudolikelihood", (DL_FUNC) &_bgms_gradient_thresholds_pseudolikelihood, 4},
     {"_bgms_gradient_thresholds_pseudoposterior", (DL_FUNC) &_bgms_gradient_thresholds_pseudoposterior, 6},
@@ -336,6 +392,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bgms_log_unnormalized_pseudoposterior_normal", (DL_FUNC) &_bgms_log_unnormalized_pseudoposterior_normal, 7},
     {"_bgms_log_unnormalized_pseudoposterior_cauchy", (DL_FUNC) &_bgms_log_unnormalized_pseudoposterior_cauchy, 7},
     {"_bgms_emvs_log_unnormalized_pseudoposterior", (DL_FUNC) &_bgms_emvs_log_unnormalized_pseudoposterior, 12},
+    {"_bgms_log_pseudolikelihood_ratio_parallel", (DL_FUNC) &_bgms_log_pseudolikelihood_ratio_parallel, 10},
     {NULL, NULL, 0}
 };
 

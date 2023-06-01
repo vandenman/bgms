@@ -13,6 +13,14 @@ em_interaction_var <- function(gamma, slab_var, theta, xi, no_persons) {
     .Call(`_bgms_em_interaction_var`, gamma, slab_var, theta, xi, no_persons)
 }
 
+log_pseudolikelihood_ratio <- function(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix) {
+    .Call(`_bgms_log_pseudolikelihood_ratio`, interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix)
+}
+
+create_rest_matrix <- function(no_persons, no_nodes, observations, interactions) {
+    .Call(`_bgms_create_rest_matrix`, no_persons, no_nodes, observations, interactions)
+}
+
 gibbs_sampler <- function(observations, gamma, interactions, thresholds, no_categories, interaction_prior, cauchy_scale, unit_info, proposal_sd, Index, iter, burnin, n_cat_obs, threshold_alpha, threshold_beta, save = FALSE, display_progress = FALSE) {
     .Call(`_bgms_gibbs_sampler`, observations, gamma, interactions, thresholds, no_categories, interaction_prior, cauchy_scale, unit_info, proposal_sd, Index, iter, burnin, n_cat_obs, threshold_alpha, threshold_beta, save, display_progress)
 }
@@ -75,5 +83,9 @@ log_unnormalized_pseudoposterior_cauchy <- function(interactions, thresholds, ob
 
 emvs_log_unnormalized_pseudoposterior <- function(interactions, thresholds, observations, no_categories, xi, slab_var, theta = 0.5, hierarchical = FALSE, indicator_alpha = 1.0, indicator_beta = 1.0, threshold_alpha = 1.0, threshold_beta = 1.0) {
     .Call(`_bgms_emvs_log_unnormalized_pseudoposterior`, interactions, thresholds, observations, no_categories, xi, slab_var, theta, hierarchical, indicator_alpha, indicator_beta, threshold_alpha, threshold_beta)
+}
+
+log_pseudolikelihood_ratio_parallel <- function(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix) {
+    .Call(`_bgms_log_pseudolikelihood_ratio_parallel`, interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix)
 }
 

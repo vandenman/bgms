@@ -1,3 +1,5 @@
+# required, see http://rcppcore.github.io/RcppParallel/#r_packages
+#' @importFrom RcppParallel RcppParallelLibs
 #' @importFrom Rcpp evalCpp
 #' @importFrom Rdpack reprompt
 #' @importFrom methods hasArg

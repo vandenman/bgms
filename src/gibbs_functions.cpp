@@ -84,6 +84,7 @@ NumericMatrix metropolis_thresholds(NumericMatrix interactions,
 // ----------------------------------------------------------------------------|
 // The log pseudolikelihood ratio [proposed against current] for an interaction
 // ----------------------------------------------------------------------------|
+// [[Rcpp::export]]
 double log_pseudolikelihood_ratio(NumericMatrix interactions,
                                   NumericMatrix thresholds,
                                   IntegerMatrix observations,
@@ -560,7 +561,23 @@ List gibbs_step_gm(IntegerMatrix observations,
                       Named("rest_matrix") = rest_matrix);
 }
 
+// [[Rcpp::export]]
+NumericMatrix create_rest_matrix(const int no_persons,
+                                 const int no_nodes,
+                                 const IntegerMatrix observations,
+                                 const NumericMatrix interactions) {
 
+  NumericMatrix rest_matrix(no_persons, no_nodes);
+  for(int node1 = 0; node1 < no_nodes; node1++) {
+    for(int person = 0; person < no_persons; person++) {
+      for(int node2 = 0; node2 < no_nodes; node2++) {
+        rest_matrix(person, node1) +=
+          observations(person, node2) * interactions(node2, node1);
+      }
+    }
+  }
+  return rest_matrix;
+}
 // ----------------------------------------------------------------------------|
 // The Gibbs sampler
 // ----------------------------------------------------------------------------|
@@ -608,15 +625,16 @@ List gibbs_sampler(IntegerMatrix observations,
   NumericMatrix out_interactions(nrow, ncol_edges);
   NumericMatrix out_thresholds(nrow, ncol_thresholds);
 
-  NumericMatrix rest_matrix(no_persons, no_nodes);
-  for(int node1 = 0; node1 < no_nodes; node1++) {
-    for(int person = 0; person < no_persons; person++) {
-      for(int node2 = 0; node2 < no_nodes; node2++) {
-        rest_matrix(person, node1) +=
-          observations(person, node2) * interactions(node2, node1);
-      }
-    }
-  }
+  NumericMatrix rest_matrix = create_rest_matrix(no_persons, no_nodes, observations, interactions);
+  // NumericMatrix rest_matrix(no_persons, no_nodes);
+  // for(int node1 = 0; node1 < no_nodes; node1++) {
+  //   for(int person = 0; person < no_persons; person++) {
+  //     for(int node2 = 0; node2 < no_nodes; node2++) {
+  //       rest_matrix(person, node1) +=
+  //         observations(person, node2) * interactions(node2, node1);
+  //     }
+  //   }
+  // }
 
   //Progress bar
   Progress p(iter + burnin, display_progress);

@@ -16,9 +16,10 @@ Description: Bayesian variable selection methods for analyzing the structure of 
 License: GPL (>= 2)
 URL: https://maartenmarsman.github.io/bgms/
 BugReports: https://github.com/MaartenMarsman/bgms/issues
-Imports: Rcpp (>= 1.0.7), Rdpack, methods
+Imports: Rcpp (>= 1.0.7), Rdpack, methods, RcppParallel
 RdMacros: Rdpack
-LinkingTo: Rcpp, RcppProgress
+LinkingTo: Rcpp, RcppProgress, RcppParallel
+SystemRequirements: GNU make
 RoxygenNote: 7.2.3
 Depends: 
     R (>= 2.10)
