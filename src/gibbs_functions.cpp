@@ -2,8 +2,76 @@
 #include <Rcpp.h>
 #include <progress.hpp>
 #include <progress_bar.hpp>
+#include "compute_c_parallel.h"
+#include "log_pseudolikelihood_ratio_parallel.h"
 using namespace Rcpp;
 
+// [[Rcpp::export]]
+double compute_c_serial(const int no_persons,
+                        const int node,
+                        const int category,
+                        const double exp_current,
+                        const NumericMatrix rest_matrix,
+                        const IntegerVector no_categories,
+                        const NumericMatrix thresholds,
+                        NumericVector g, NumericVector q) {
+
+  double c = 0.0;
+  for(int person = 0; person < no_persons; person++) {
+    g[person] = 1.0;
+    q[person] = 1.0;
+    double rest_score = rest_matrix(person, node);
+    // for(int cat = 0; cat < category; cat++) {
+    //     g[person] += std::exp(thresholds(node, cat) + (cat + 1) * rest_score);
+    //   }
+    // }
+    // for(int cat = category+1; cat < no_categories[node]; cat++) {
+    //     g[person] += std::exp(thresholds(node, cat) + (cat + 1) * rest_score);
+    // }
+    for(int cat = 0; cat < no_categories[node]; cat++) {
+      if(cat != category) {
+        g[person] += std::exp(thresholds(node, cat) +
+          (cat + 1) * rest_score);
+      }
+    }
+    q[person] = std::exp((category + 1) * rest_score);
+    c +=  q[person] / (g[person] + q[person] * exp_current);
+  }
+  return c;
+}
+
+double compute_c(const int no_persons,
+                 const int node,
+                 const int category,
+                 const double exp_current,
+                 const NumericMatrix rest_matrix,
+                 const IntegerVector no_categories,
+                 const NumericMatrix thresholds,
+                 NumericVector g, NumericVector q,
+                 const bool parallel)
+{
+  if (parallel)
+    return compute_c_parallel(no_persons,
+                              node,
+                              category,
+                              exp_current,
+                              rest_matrix,
+                              no_categories,
+                              thresholds,
+                              g,
+                              q);
+  else
+    return compute_c_serial(no_persons,
+                            node,
+                            category,
+                            exp_current,
+                            rest_matrix,
+                            no_categories,
+                            thresholds,
+                            g,
+                            q);
+
+}
 // ----------------------------------------------------------------------------|
 // MH algorithm to sample from the full-conditional of the threshold parameters
 // ----------------------------------------------------------------------------|
@@ -16,7 +84,8 @@ NumericMatrix metropolis_thresholds(NumericMatrix interactions,
                                     int no_nodes,
                                     double threshold_alpha,
                                     double threshold_beta,
-                                    NumericMatrix rest_matrix) {
+                                    NumericMatrix rest_matrix,
+                                    const bool parallel) {
   NumericVector g(no_persons);
   NumericVector q(no_persons);
 
@@ -32,19 +101,37 @@ NumericMatrix metropolis_thresholds(NumericMatrix interactions,
       current_state = thresholds(node, category);
       exp_current = std::exp(current_state);
       c = (threshold_alpha + threshold_beta) / (1 + exp_current);
-      for(int person = 0; person < no_persons; person++) {
-        g[person] = 1.0;
-        q[person] = 1.0;
-        rest_score = rest_matrix(person, node);
-        for(int cat = 0; cat < no_categories[node]; cat++) {
-          if(cat != category) {
-            g[person] += std::exp(thresholds(node, cat) +
-              (cat + 1) * rest_score);
-          }
-        }
-        q[person] = std::exp((category + 1) * rest_score);
-        c +=  q[person] / (g[person] + q[person] * exp_current);
-      }
+
+      c += compute_c(no_persons,
+                     node,
+                     category,
+                     exp_current,
+                     rest_matrix,
+                     no_categories,
+                     thresholds,
+                     g,
+                     q,
+                     parallel);
+      // for(int person = 0; person < no_persons; person++) {
+      //   g[person] = 1.0;
+      //   q[person] = 1.0;
+      //   rest_score = rest_matrix(person, node);
+      //   // for(int cat = 0; cat < category; cat++) {
+      //   //     g[person] += std::exp(thresholds(node, cat) + (cat + 1) * rest_score);
+      //   //   }
+      //   // }
+      //   // for(int cat = category+1; cat < no_categories[node]; cat++) {
+      //   //     g[person] += std::exp(thresholds(node, cat) + (cat + 1) * rest_score);
+      //   // }
+      //   for(int cat = 0; cat < no_categories[node]; cat++) {
+      //     if(cat != category) {
+      //       g[person] += std::exp(thresholds(node, cat) +
+      //         (cat + 1) * rest_score);
+      //     }
+      //   }
+      //   q[person] = std::exp((category + 1) * rest_score);
+      //   c +=  q[person] / (g[person] + q[person] * exp_current);
+      // }
       c = c / ((no_persons + threshold_alpha + threshold_beta) -
         exp_current * c);
 
@@ -80,12 +167,11 @@ NumericMatrix metropolis_thresholds(NumericMatrix interactions,
   return thresholds;
 }
 
-
 // ----------------------------------------------------------------------------|
 // The log pseudolikelihood ratio [proposed against current] for an interaction
 // ----------------------------------------------------------------------------|
 // [[Rcpp::export]]
-double log_pseudolikelihood_ratio(NumericMatrix interactions,
+double log_pseudolikelihood_ratio_serial(NumericMatrix interactions,
                                   NumericMatrix thresholds,
                                   IntegerMatrix observations,
                                   IntegerVector no_categories,
@@ -162,6 +248,48 @@ double log_pseudolikelihood_ratio(NumericMatrix interactions,
 }
 
 // ----------------------------------------------------------------------------|
+// The log pseudolikelihood ratio [proposed against current] for an interaction
+// ----------------------------------------------------------------------------|
+// [[Rcpp::export]]
+double log_pseudolikelihood_ratio(NumericMatrix interactions,
+                                  NumericMatrix thresholds,
+                                  IntegerMatrix observations,
+                                  IntegerVector no_categories,
+                                  int no_persons,
+                                  int node1,
+                                  int node2,
+                                  double proposed_state,
+                                  double current_state,
+                                  NumericMatrix rest_matrix,
+                                  const bool parallel)
+{
+  if (parallel)
+    return log_pseudolikelihood_ratio_parallel(interactions,
+                                        thresholds,
+                                        observations,
+                                        no_categories,
+                                        no_persons,
+                                        node1,
+                                        node2,
+                                        proposed_state,
+                                        current_state,
+                                        rest_matrix);
+    else
+      return log_pseudolikelihood_ratio_serial(interactions,
+                                        thresholds,
+                                        observations,
+                                        no_categories,
+                                        no_persons,
+                                        node1,
+                                        node2,
+                                        proposed_state,
+                                        current_state,
+                                        rest_matrix);
+
+
+}
+
+// ----------------------------------------------------------------------------|
 // MH algorithm to sample from the cull-conditional of the active interaction
 //  parameters (using a cauchy prior)
 // ----------------------------------------------------------------------------|
@@ -174,7 +302,8 @@ List metropolis_interactions_cauchy(NumericMatrix interactions,
                                     double cauchy_scale,
                                     int no_persons,
                                     int no_nodes,
-                                    NumericMatrix rest_matrix) {
+                                    NumericMatrix rest_matrix,
+                                    const bool parallel) {
   double proposed_state;
   double current_state;
   double log_prob;
@@ -195,7 +324,8 @@ List metropolis_interactions_cauchy(NumericMatrix interactions,
                                               node2,
                                               proposed_state,
                                               current_state,
-                                              rest_matrix);
+                                              rest_matrix,
+                                              parallel);
         log_prob += R::dcauchy(proposed_state, 0.0, cauchy_scale, true);
         log_prob -= R::dcauchy(current_state, 0.0, cauchy_scale, true);
 
@@ -233,7 +363,8 @@ List metropolis_interactions_unitinfo(NumericMatrix interactions,
                                       NumericMatrix unit_info,
                                       int no_persons,
                                       int no_nodes,
-                                      NumericMatrix rest_matrix) {
+                                      NumericMatrix rest_matrix,
+                                      const bool parallel) {
   //NumericMatrix theta // no_nodes x no_nodes
   double proposed_state;
   double current_state;
@@ -255,7 +386,8 @@ List metropolis_interactions_unitinfo(NumericMatrix interactions,
                                               node2,
                                               proposed_state,
                                               current_state,
-                                              rest_matrix);
+                                              rest_matrix,
+                                              parallel);
 
         log_prob += R::dnorm(proposed_state,
                              0.0,
@@ -300,7 +432,8 @@ List metropolis_edge_interaction_pair_cauchy(NumericMatrix interactions,
                                              IntegerMatrix index,
                                              int no_interactions,
                                              int no_persons,
-                                             NumericMatrix rest_matrix) {
+                                             NumericMatrix rest_matrix,
+                                             const bool parallel) {
   double proposed_state;
   double current_state;
   double log_prob;
@@ -321,16 +454,17 @@ List metropolis_edge_interaction_pair_cauchy(NumericMatrix interactions,
       proposed_state = 0.0;
     }
 
-    log_prob = log_pseudolikelihood_ratio(interactions,
-                                          thresholds,
-                                          observations,
-                                          no_categories,
-                                          no_persons,
-                                          node1,
-                                          node2,
-                                          proposed_state,
-                                          current_state,
-                                          rest_matrix);
+      log_prob = log_pseudolikelihood_ratio(interactions,
+                                            thresholds,
+                                            observations,
+                                            no_categories,
+                                            no_persons,
+                                            node1,
+                                            node2,
+                                            proposed_state,
+                                            current_state,
+                                            rest_matrix,
+                                            parallel);
 
     if(gamma(node1, node2) == 0) {
       log_prob += R::dcauchy(proposed_state, 0.0, cauchy_scale, true);
@@ -383,7 +517,9 @@ List metropolis_edge_interaction_pair_unitinfo(NumericMatrix interactions,
                                                IntegerMatrix index,
                                                int no_interactions,
                                                int no_persons,
-                                               NumericMatrix rest_matrix) {
+                                               NumericMatrix rest_matrix,
+                                               const bool parallel
+                                              ) {
   double proposed_state;
   double current_state;
   double log_prob;
@@ -413,7 +549,8 @@ List metropolis_edge_interaction_pair_unitinfo(NumericMatrix interactions,
                                           node2,
                                           proposed_state,
                                           current_state,
-                                          rest_matrix);
+                                          rest_matrix,
+                                          parallel);
 
     if(gamma(node1, node2) == 0) {
       log_prob += R::dnorm(proposed_state,
@@ -479,7 +616,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                    IntegerMatrix gamma,
                    NumericMatrix interactions,
                    NumericMatrix thresholds,
-                   NumericMatrix rest_matrix) {
+                   NumericMatrix rest_matrix,
+                   const bool parallel) {
 
   if(interaction_prior == "Cauchy") {
     List out = metropolis_edge_interaction_pair_cauchy(interactions,
@@ -492,7 +630,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                                                        index,
                                                        no_interactions,
                                                        no_persons,
-                                                       rest_matrix);
+                                                       rest_matrix,
+                                                       parallel);
     IntegerMatrix gamma = out["gamma"];
     NumericMatrix interactions = out["interactions"];
     NumericMatrix rest_matrix = out["rest_matrix"];
@@ -507,7 +646,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                                                          index,
                                                          no_interactions,
                                                          no_persons,
-                                                         rest_matrix);
+                                                         rest_matrix,
+                                                         parallel);
     IntegerMatrix gamma = out["gamma"];
     NumericMatrix interactions = out["interactions"];
     NumericMatrix rest_matrix = out["rest_matrix"];
@@ -524,7 +664,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                                               cauchy_scale,
                                               no_persons,
                                               no_nodes,
-                                              rest_matrix);
+                                              rest_matrix,
+                                              parallel);
     NumericMatrix interactions = out["interactions"];
     NumericMatrix rest_matrix = out["rest_matrix"];
   }
@@ -538,7 +679,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                                                 unit_info,
                                                 no_persons,
                                                 no_nodes,
-                                                rest_matrix);
+                                                rest_matrix,
+                                                parallel);
     NumericMatrix interactions = out["interactions"];
     NumericMatrix rest_matrix = out["rest_matrix"];
   }
@@ -553,7 +695,8 @@ List gibbs_step_gm(IntegerMatrix observations,
                                      no_nodes,
                                      threshold_alpha,
                                      threshold_beta,
-                                     rest_matrix);
+                                     rest_matrix,
+                                     parallel);
 
   return List::create(Named("gamma") = gamma,
                       Named("interactions") = interactions,
@@ -598,7 +741,8 @@ List gibbs_sampler(IntegerMatrix observations,
                    double threshold_alpha,
                    double threshold_beta,
                    bool save = false,
-                   bool display_progress = false){
+                   bool display_progress = false,
+                   bool parallel = false){
   int cntr;
   int no_nodes = observations.ncol();
   int no_persons = observations.nrow();
@@ -681,7 +825,8 @@ List gibbs_sampler(IntegerMatrix observations,
                              gamma,
                              interactions,
                              thresholds,
-                             rest_matrix);
+                             rest_matrix,
+                             parallel);
     IntegerMatrix gamma = out["gamma"];
     NumericMatrix interactions = out["interactions"];
     NumericMatrix thresholds = out["thresholds"];
@@ -730,7 +875,8 @@ List gibbs_sampler(IntegerMatrix observations,
                                gamma,
                                interactions,
                                thresholds,
-                               rest_matrix);
+                               rest_matrix,
+                               parallel);
 
     IntegerMatrix gamma = out["gamma"];
     NumericMatrix interactions = out["interactions"];

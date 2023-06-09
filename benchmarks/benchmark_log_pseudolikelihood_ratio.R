@@ -23,6 +23,8 @@ no_nodes       <- 20
 max_categories <- 7
 no_categories <- sample(1:max_categories, size = no_nodes, replace = TRUE)
 
+temp <- unlist(lapply(no_categories, seq_len))
+no_nodes
 
 # interactions = matrix(0, nrow = no_nodes, ncol = no_nodes)
 # interactions[2, 1] = interactions[4, 1] = interactions[3, 2] =
@@ -216,4 +218,5 @@ timing <- bench::press(
 )
 
 bench:::autoplot.bench_mark()
-autoplot(timing, type = "violin")
+renv::install("ggbeeswarm")
+autoplot(timing)#, type = "violin")

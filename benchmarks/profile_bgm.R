@@ -4,9 +4,10 @@ library(bgms)
 # based on http://minimallysufficient.github.io/r/programming/c++/2018/02/16/profiling-rcpp-packages.html
 
 bgms:::start_profiler("benchmarks/test_profile.out")
-fit <- bgm(x = Wenchuan, iter = 100)
+fit <- bgm(x = Wenchuan, iter = 1000)
 bgms:::stop_profiler()
-profvis::profvis(prof_input = "benchmarks/test_profile.out")
+
+# profvis::profvis(prof_input = "benchmarks/test_profile.out")
 
 bgms:::start_profiler("benchmarks/log_pseudolikelihood_ratio.out")
 for (i in 1:1000) {

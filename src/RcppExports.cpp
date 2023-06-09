@@ -10,6 +10,25 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// compute_c_parallel
+double compute_c_parallel(const int no_persons, const int node, const int category, const double exp_current, const NumericMatrix rest_matrix, const IntegerVector no_categories, const NumericMatrix thresholds, NumericVector g, NumericVector q);
+RcppExport SEXP _bgms_compute_c_parallel(SEXP no_personsSEXP, SEXP nodeSEXP, SEXP categorySEXP, SEXP exp_currentSEXP, SEXP rest_matrixSEXP, SEXP no_categoriesSEXP, SEXP thresholdsSEXP, SEXP gSEXP, SEXP qSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< const int >::type node(nodeSEXP);
+    Rcpp::traits::input_parameter< const int >::type category(categorySEXP);
+    Rcpp::traits::input_parameter< const double >::type exp_current(exp_currentSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type rest_matrix(rest_matrixSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type g(gSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type q(qSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_c_parallel(no_persons, node, category, exp_current, rest_matrix, no_categories, thresholds, g, q));
+    return rcpp_result_gen;
+END_RCPP
+}
 // sample_omrf_gibbs
 IntegerMatrix sample_omrf_gibbs(int no_states, int no_nodes, IntegerVector no_categories, NumericMatrix interactions, NumericMatrix thresholds, int iter);
 RcppExport SEXP _bgms_sample_omrf_gibbs(SEXP no_statesSEXP, SEXP no_nodesSEXP, SEXP no_categoriesSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP iterSEXP) {
@@ -56,9 +75,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// log_pseudolikelihood_ratio
-double log_pseudolikelihood_ratio(NumericMatrix interactions, NumericMatrix thresholds, IntegerMatrix observations, IntegerVector no_categories, int no_persons, int node1, int node2, double proposed_state, double current_state, NumericMatrix rest_matrix);
-RcppExport SEXP _bgms_log_pseudolikelihood_ratio(SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP observationsSEXP, SEXP no_categoriesSEXP, SEXP no_personsSEXP, SEXP node1SEXP, SEXP node2SEXP, SEXP proposed_stateSEXP, SEXP current_stateSEXP, SEXP rest_matrixSEXP) {
+// compute_c_serial
+double compute_c_serial(const int no_persons, const int node, const int category, const double exp_current, const NumericMatrix rest_matrix, const IntegerVector no_categories, const NumericMatrix thresholds, NumericVector g, NumericVector q);
+RcppExport SEXP _bgms_compute_c_serial(SEXP no_personsSEXP, SEXP nodeSEXP, SEXP categorySEXP, SEXP exp_currentSEXP, SEXP rest_matrixSEXP, SEXP no_categoriesSEXP, SEXP thresholdsSEXP, SEXP gSEXP, SEXP qSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< const int >::type node(nodeSEXP);
+    Rcpp::traits::input_parameter< const int >::type category(categorySEXP);
+    Rcpp::traits::input_parameter< const double >::type exp_current(exp_currentSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type rest_matrix(rest_matrixSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type g(gSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type q(qSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_c_serial(no_persons, node, category, exp_current, rest_matrix, no_categories, thresholds, g, q));
+    return rcpp_result_gen;
+END_RCPP
+}
+// log_pseudolikelihood_ratio_serial
+double log_pseudolikelihood_ratio_serial(NumericMatrix interactions, NumericMatrix thresholds, IntegerMatrix observations, IntegerVector no_categories, int no_persons, int node1, int node2, double proposed_state, double current_state, NumericMatrix rest_matrix);
+RcppExport SEXP _bgms_log_pseudolikelihood_ratio_serial(SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP observationsSEXP, SEXP no_categoriesSEXP, SEXP no_personsSEXP, SEXP node1SEXP, SEXP node2SEXP, SEXP proposed_stateSEXP, SEXP current_stateSEXP, SEXP rest_matrixSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -72,7 +110,28 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type proposed_state(proposed_stateSEXP);
     Rcpp::traits::input_parameter< double >::type current_state(current_stateSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type rest_matrix(rest_matrixSEXP);
-    rcpp_result_gen = Rcpp::wrap(log_pseudolikelihood_ratio(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix));
+    rcpp_result_gen = Rcpp::wrap(log_pseudolikelihood_ratio_serial(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix));
+    return rcpp_result_gen;
+END_RCPP
+}
+// log_pseudolikelihood_ratio
+double log_pseudolikelihood_ratio(NumericMatrix interactions, NumericMatrix thresholds, IntegerMatrix observations, IntegerVector no_categories, int no_persons, int node1, int node2, double proposed_state, double current_state, NumericMatrix rest_matrix, const bool parallel);
+RcppExport SEXP _bgms_log_pseudolikelihood_ratio(SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP observationsSEXP, SEXP no_categoriesSEXP, SEXP no_personsSEXP, SEXP node1SEXP, SEXP node2SEXP, SEXP proposed_stateSEXP, SEXP current_stateSEXP, SEXP rest_matrixSEXP, SEXP parallelSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type interactions(interactionsSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type thresholds(thresholdsSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type observations(observationsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type no_categories(no_categoriesSEXP);
+    Rcpp::traits::input_parameter< int >::type no_persons(no_personsSEXP);
+    Rcpp::traits::input_parameter< int >::type node1(node1SEXP);
+    Rcpp::traits::input_parameter< int >::type node2(node2SEXP);
+    Rcpp::traits::input_parameter< double >::type proposed_state(proposed_stateSEXP);
+    Rcpp::traits::input_parameter< double >::type current_state(current_stateSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type rest_matrix(rest_matrixSEXP);
+    Rcpp::traits::input_parameter< const bool >::type parallel(parallelSEXP);
+    rcpp_result_gen = Rcpp::wrap(log_pseudolikelihood_ratio(interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix, parallel));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -91,8 +150,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // gibbs_sampler
-List gibbs_sampler(IntegerMatrix observations, IntegerMatrix gamma, NumericMatrix interactions, NumericMatrix thresholds, IntegerVector no_categories, String interaction_prior, double cauchy_scale, NumericMatrix unit_info, NumericMatrix proposal_sd, IntegerMatrix Index, int iter, int burnin, IntegerMatrix n_cat_obs, double threshold_alpha, double threshold_beta, bool save, bool display_progress);
-RcppExport SEXP _bgms_gibbs_sampler(SEXP observationsSEXP, SEXP gammaSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP no_categoriesSEXP, SEXP interaction_priorSEXP, SEXP cauchy_scaleSEXP, SEXP unit_infoSEXP, SEXP proposal_sdSEXP, SEXP IndexSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP n_cat_obsSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP saveSEXP, SEXP display_progressSEXP) {
+List gibbs_sampler(IntegerMatrix observations, IntegerMatrix gamma, NumericMatrix interactions, NumericMatrix thresholds, IntegerVector no_categories, String interaction_prior, double cauchy_scale, NumericMatrix unit_info, NumericMatrix proposal_sd, IntegerMatrix Index, int iter, int burnin, IntegerMatrix n_cat_obs, double threshold_alpha, double threshold_beta, bool save, bool display_progress, bool parallel);
+RcppExport SEXP _bgms_gibbs_sampler(SEXP observationsSEXP, SEXP gammaSEXP, SEXP interactionsSEXP, SEXP thresholdsSEXP, SEXP no_categoriesSEXP, SEXP interaction_priorSEXP, SEXP cauchy_scaleSEXP, SEXP unit_infoSEXP, SEXP proposal_sdSEXP, SEXP IndexSEXP, SEXP iterSEXP, SEXP burninSEXP, SEXP n_cat_obsSEXP, SEXP threshold_alphaSEXP, SEXP threshold_betaSEXP, SEXP saveSEXP, SEXP display_progressSEXP, SEXP parallelSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -113,7 +172,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type threshold_beta(threshold_betaSEXP);
     Rcpp::traits::input_parameter< bool >::type save(saveSEXP);
     Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
-    rcpp_result_gen = Rcpp::wrap(gibbs_sampler(observations, gamma, interactions, thresholds, no_categories, interaction_prior, cauchy_scale, unit_info, proposal_sd, Index, iter, burnin, n_cat_obs, threshold_alpha, threshold_beta, save, display_progress));
+    Rcpp::traits::input_parameter< bool >::type parallel(parallelSEXP);
+    rcpp_result_gen = Rcpp::wrap(gibbs_sampler(observations, gamma, interactions, thresholds, no_categories, interaction_prior, cauchy_scale, unit_info, proposal_sd, Index, iter, burnin, n_cat_obs, threshold_alpha, threshold_beta, save, display_progress, parallel));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -392,12 +452,15 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_bgms_compute_c_parallel", (DL_FUNC) &_bgms_compute_c_parallel, 9},
     {"_bgms_sample_omrf_gibbs", (DL_FUNC) &_bgms_sample_omrf_gibbs, 6},
     {"_bgms_em_gamma", (DL_FUNC) &_bgms_em_gamma, 5},
     {"_bgms_em_interaction_var", (DL_FUNC) &_bgms_em_interaction_var, 5},
-    {"_bgms_log_pseudolikelihood_ratio", (DL_FUNC) &_bgms_log_pseudolikelihood_ratio, 10},
+    {"_bgms_compute_c_serial", (DL_FUNC) &_bgms_compute_c_serial, 9},
+    {"_bgms_log_pseudolikelihood_ratio_serial", (DL_FUNC) &_bgms_log_pseudolikelihood_ratio_serial, 10},
+    {"_bgms_log_pseudolikelihood_ratio", (DL_FUNC) &_bgms_log_pseudolikelihood_ratio, 11},
     {"_bgms_create_rest_matrix", (DL_FUNC) &_bgms_create_rest_matrix, 4},
-    {"_bgms_gibbs_sampler", (DL_FUNC) &_bgms_gibbs_sampler, 17},
+    {"_bgms_gibbs_sampler", (DL_FUNC) &_bgms_gibbs_sampler, 18},
     {"_bgms_gradient_thresholds_pseudolikelihood", (DL_FUNC) &_bgms_gradient_thresholds_pseudolikelihood, 4},
     {"_bgms_gradient_thresholds_pseudoposterior", (DL_FUNC) &_bgms_gradient_thresholds_pseudoposterior, 6},
     {"_bgms_gradient_interactions_pseudolikelihood", (DL_FUNC) &_bgms_gradient_interactions_pseudolikelihood, 4},

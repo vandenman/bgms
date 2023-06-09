@@ -41,6 +41,8 @@
 #' @param display_progress Should the function show a progress bar
 #' (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 #' Defaults to \code{TRUE}.
+#' @param parallel Should the internal functions run in parallel? Use \code{\link[RcppParallel]{setThreadOptions}}
+#' to control the number of threads and memory per thread. Defaults to TRUE if \code{x} has more than 750 rows.
 #'
 #' @return If \code{save = FALSE} (the default), the result is a list containing
 #' the following matrices:
@@ -159,7 +161,8 @@ bgm = function(x,
                threshold_alpha = 1,
                threshold_beta = 1,
                save = FALSE,
-               display_progress = TRUE) {
+               display_progress = TRUE,
+               parallel = nrow(x) > 750) {
 
   #Check Gibbs input -----------------------------------------------------------
   if(abs(iter - round(iter)) > sqrt(.Machine$double.eps))
@@ -188,6 +191,9 @@ bgm = function(x,
     stop("The matrix x should have more than one variable (columns).")
   if(nrow(x) < 2)
     stop("The matrix x should have more than one observation (rows).")
+
+  if(!is.logical(parallel) || is.na(parallel))
+    stop("The argument 'parallel' should be either TRUE or FALSE.")
 
   #Format the data input -------------------------------------------------------
   data = reformat_data(x = x)
@@ -288,7 +294,8 @@ bgm = function(x,
                       threshold_alpha = threshold_alpha,
                       threshold_beta = threshold_beta,
                       save = save,
-                      display_progress = display_progress)
+                      display_progress = display_progress,
+                      parallel = parallel)
 
   #Preparing the output --------------------------------------------------------
   if(save == FALSE) {
