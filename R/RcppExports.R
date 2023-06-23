@@ -101,11 +101,3 @@ log_pseudolikelihood_ratio_parallel <- function(interactions, thresholds, observ
     .Call(`_bgms_log_pseudolikelihood_ratio_parallel`, interactions, thresholds, observations, no_categories, no_persons, node1, node2, proposed_state, current_state, rest_matrix)
 }
 
-start_profiler <- function(str) {
-    .Call(`_bgms_start_profiler`, str)
-}
-
-stop_profiler <- function() {
-    .Call(`_bgms_stop_profiler`)
-}
-
