@@ -50,7 +50,7 @@ double compute_c(const int no_persons,
                  NumericVector g, NumericVector q,
                  const bool parallel)
 {
-  if (false)
+  if (true)
     return compute_c_parallel(no_persons,
                               node,
                               category,
@@ -263,7 +263,7 @@ double log_pseudolikelihood_ratio(NumericMatrix interactions,
                                   NumericMatrix rest_matrix,
                                   const bool parallel)
 {
-  if (parallel)
+  if (false)
     return log_pseudolikelihood_ratio_parallel(interactions,
                                         thresholds,
                                         observations,
