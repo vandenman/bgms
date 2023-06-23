@@ -50,7 +50,7 @@ double compute_c(const int no_persons,
                  NumericVector g, NumericVector q,
                  const bool parallel)
 {
-  if (true)
+  if (parallel)
     return compute_c_parallel(no_persons,
                               node,
                               category,
