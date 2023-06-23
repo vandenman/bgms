@@ -14,7 +14,8 @@ bgm(
   threshold_alpha = 1,
   threshold_beta = 1,
   save = FALSE,
-  display_progress = TRUE
+  display_progress = TRUE,
+  parallel = nrow(x) > 750
 )
 }
 \arguments{
@@ -50,6 +51,9 @@ posterior means (\code{save = FALSE})? Defaults to \code{FALSE}.}
 \item{display_progress}{Should the function show a progress bar
 (\code{display_progress = TRUE})? Or not (\code{display_progress = FALSE})?
 Defaults to \code{TRUE}.}
+
+\item{parallel}{Should the internal functions run in parallel? Use \code{\link[RcppParallel]{setThreadOptions}}
+to control the number of threads and memory per thread. Defaults to TRUE if \code{x} has more than 750 rows.}
 }
 \value{
 If \code{save = FALSE} (the default), the result is a list containing
