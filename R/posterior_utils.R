@@ -5,8 +5,8 @@
 #  Statistical Association, 114:526, 893-905, DOI:10.1080/01621459.2018.1458618
 getDahl = function(cluster_allocations) {
   # Dimensions of the input matrix
-  niters = nrow(cluster_allocations)  # Number of iterations
-  n = ncol(cluster_allocations)       # Number of nodes
+  niters = nrow(cluster_allocations) # Number of iterations
+  n = ncol(cluster_allocations) # Number of nodes
 
   # Compute membership matrices for each iteration
   membershipMatrices = apply(cluster_allocations, 1, function(clusterAssign) {
@@ -23,7 +23,8 @@ getDahl = function(cluster_allocations) {
 
   # Compute squared error for each iteration
   SqError = sapply(membershipMatrices, function(x, av) sum((x - av)^2),
-                   av = membershipAverage)
+    av = membershipAverage
+  )
 
   # Find the iteration with the minimum squared error
   DahlIndex = which.min(SqError)
@@ -61,9 +62,9 @@ compute_p_k_given_t = function(
   truncated_poisson_pmf = dpois(K_values, lambda) / norm_factor
 
   # Loop through each value of K
-  for (i in seq_along(K_values)) {
+  for(i in seq_along(K_values)) {
     K = K_values[i]
-    if (K >= t) {
+    if(K >= t) {
       # Falling factorial
       falling_factorial = prod(K:(K - t + 1))
       # Rising factorial
@@ -100,26 +101,28 @@ compute_p_k_given_t = function(
 #' and the estimated cluster allocation of the nodes using Dahl's method.
 #' @examples
 #' \donttest{
-#'   # fit a model with the SBM prior
-#'   bgm_object = bgm(
-#'     Wenchuan[, c(1:5)],
-#'     edge_prior = "Stochastic-Block",
-#'     save = TRUE)
+#' # fit a model with the SBM prior
+#' bgm_object = bgm(
+#'   Wenchuan[, c(1:5)],
+#'   edge_prior = "Stochastic-Block",
+#'   save = TRUE
+#' )
 #'
-#'   summarySBM(bgm_object)
+#' summarySBM(bgm_object)
 #' }
 #' @export
 summarySBM = function(
     bgm_object,
     internal_call = FALSE) {
-
   arguments = extract_arguments(bgm_object)
 
-  if(arguments$edge_prior != "Stochastic-Block")
+  if(arguments$edge_prior != "Stochastic-Block") {
     stop('The bgm function must be run with edge_prior = "Stochastic-Block".')
+  }
 
-  if(arguments$save == FALSE && internal_call == FALSE)
-    stop('The bgm function must be run with save = TRUE.')
+  if(arguments$save == FALSE && internal_call == FALSE) {
+    stop("The bgm function must be run with save = TRUE.")
+  }
 
   cluster_allocations = bgm_object$allocations
   dirichlet_alpha = arguments$dirichlet_alpha
@@ -128,7 +131,8 @@ summarySBM = function(
   # Pre-compute log_Vn for computing the cluster probabilities
   num_variables = ncol(cluster_allocations)
   log_Vn = compute_Vn_mfm_sbm(
-    num_variables, dirichlet_alpha, num_variables + 10, lambda)
+    num_variables, dirichlet_alpha, num_variables + 10, lambda
+  )
 
   # Compute the number of unique clusters (t) for each iteration, i.e., the
   # cardinality  of the partition z
@@ -138,9 +142,10 @@ summarySBM = function(
   # row in clusters
   p_k_given_t = matrix(NA, nrow = length(clusters), ncol = num_variables)
 
-  for (i in 1:length(clusters)) {
+  for(i in 1:length(clusters)) {
     p_k_given_t[i, ] = compute_p_k_given_t(
-      clusters[i], log_Vn, dirichlet_alpha, num_variables, lambda)
+      clusters[i], log_Vn, dirichlet_alpha, num_variables, lambda
+    )
   }
 
   # Average across all iterations
@@ -154,6 +159,8 @@ summarySBM = function(
   # Compute the allocations of the nodes based on Dahl's method
   allocations = getDahl(cluster_allocations)
 
-  return(list(components = components,
-              allocations = allocations))
+  return(list(
+    components = components,
+    allocations = allocations
+  ))
 }

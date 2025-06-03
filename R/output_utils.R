@@ -17,7 +17,6 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
                                      main_difference_scale,
                                      pairwise_difference_scale,
                                      projection, is_ordinal_variable) {
-
   save = any(c(save_options$save_main, save_options$save_pairwise, save_options$save_indicator))
 
   arguments = list(
@@ -64,14 +63,15 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
     for(g in 1:num_groups) {
       posterior_mean_main[, g] = tmp[, g]
 
-      #This can probably be done prettier
-      if(any(tmp[,g] == 0))
-        posterior_mean_main[tmp[,g] == 0, g] = NA
+      # This can probably be done prettier
+      if(any(tmp[, g] == 0)) {
+        posterior_mean_main[tmp[, g] == 0, g] = NA
+      }
     }
   } else {
     posterior_mean_main = matrix(NA, nrow = nrow(tmp), ncol = ncol(tmp) + 1)
     posterior_mean_main[, 1] = tmp[, 1]
-    for (row in 1:nrow(tmp)) {
+    for(row in 1:nrow(tmp)) {
       posterior_mean_main[row, -1] = projection %*% tmp[row, -1]
     }
   }
@@ -79,9 +79,9 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
 
   names_variable_categories = vector(length = nrow(tmp))
   counter = 0
-  for (v in 1:num_variables) {
+  for(v in 1:num_variables) {
     if(is_ordinal_variable[v]) {
-      for (c in 1:max(num_categories[v, ])) {
+      for(c in 1:max(num_categories[v, ])) {
         counter = counter + 1
         names_variable_categories[counter] = paste0(data_columnnames[v], "(", c, ")")
       }
@@ -91,7 +91,6 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
       counter = counter + 1
       names_variable_categories[counter] = paste0(data_columnnames[v], "(quadratic)")
     }
-
   }
   if(independent_thresholds) {
     dimnames(results$posterior_mean_main) = list(names_variable_categories, paste0("group_", 1:num_groups))
@@ -103,65 +102,65 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
   tmp = out$posterior_mean_pairwise
   posterior_mean_pairwise = matrix(0, nrow = nrow(tmp), ncol = ncol(tmp) + 1)
   posterior_mean_pairwise[, 1] = tmp[, 1]
-  for (row in 1:nrow(tmp)) {
+  for(row in 1:nrow(tmp)) {
     posterior_mean_pairwise[row, -1] = projection %*% tmp[row, -1]
   }
 
   results$posterior_mean_pairwise = posterior_mean_pairwise
   dimnames(results$posterior_mean_pairwise) = list(names_vec, c("overall", paste0("group_", 1:num_groups)))
 
-  if (difference_selection && "posterior_mean_indicator" %in% names(out) ) {
+  if(difference_selection && "posterior_mean_indicator" %in% names(out)) {
     results$posterior_mean_indicator = out$posterior_mean_indicator
-    dimnames(results$posterior_mean_indicator) = list(data_columnnames,
-                                                      data_columnnames)
-    if(main_difference_model == "Free"){
+    dimnames(results$posterior_mean_indicator) = list(
+      data_columnnames,
+      data_columnnames
+    )
+    if(main_difference_model == "Free") {
       diag(results$posterior_mean_indicator) <- NA
-    } 
+    }
   }
 
 
   # Handle main_effect_samples
-  if (save_options$save_main && "main_effect_samples" %in% names(out)) {
+  if(save_options$save_main && "main_effect_samples" %in% names(out)) {
     main_effect_samples = out$main_effect_samples
-    col_names = character()  # Vector to store column names
+    col_names = character() # Vector to store column names
 
     if(independent_thresholds) {
-      for (gr in 1:num_groups) {
-        for (var in 1:num_variables) {
+      for(gr in 1:num_groups) {
+        for(var in 1:num_variables) {
           if(is_ordinal_variable[var]) {
-            for (cat in 1:max(num_categories[var, ])) {
-              col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(", cat, ")"))
+            for(cat in 1:max(num_categories[var, ])) {
+              col_names = c(col_names, paste0(data_columnnames[var], "_gr", gr, "(", cat, ")"))
             }
           } else {
-            col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(linear)"))
-            col_names = c(col_names, paste0(data_columnnames[var],"_gr", gr, "(quadratic)"))
+            col_names = c(col_names, paste0(data_columnnames[var], "_gr", gr, "(linear)"))
+            col_names = c(col_names, paste0(data_columnnames[var], "_gr", gr, "(quadratic)"))
           }
         }
       }
-
     } else {
-
-      for (gr in 1:num_groups) {
+      for(gr in 1:num_groups) {
         if(gr == 1) {
-          for (var in 1:num_variables) {
+          for(var in 1:num_variables) {
             if(is_ordinal_variable[var]) {
-              for (cat in 1:max(num_categories[var, ])) {
-                col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(", cat, ")"))
+              for(cat in 1:max(num_categories[var, ])) {
+                col_names = c(col_names, paste0(data_columnnames[var], "_overall", gr, "(", cat, ")"))
               }
             } else {
-              col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(linear)"))
-              col_names = c(col_names, paste0(data_columnnames[var],"_overall", gr, "(quadratic)"))
+              col_names = c(col_names, paste0(data_columnnames[var], "_overall", gr, "(linear)"))
+              col_names = c(col_names, paste0(data_columnnames[var], "_overall", gr, "(quadratic)"))
             }
           }
         } else {
-          for (var in 1:num_variables) {
+          for(var in 1:num_variables) {
             if(is_ordinal_variable[var]) {
-              for (cat in 1:max(num_categories[var, ])) {
-                col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(", cat, ")"))
+              for(cat in 1:max(num_categories[var, ])) {
+                col_names = c(col_names, paste0(data_columnnames[var], "_contrast_#", gr - 1, "(", cat, ")"))
               }
             } else {
-              col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(linear)"))
-              col_names = c(col_names, paste0(data_columnnames[var],"_contrast_#", gr-1, "(quadratic)"))
+              col_names = c(col_names, paste0(data_columnnames[var], "_contrast_#", gr - 1, "(linear)"))
+              col_names = c(col_names, paste0(data_columnnames[var], "_contrast_#", gr - 1, "(quadratic)"))
             }
           }
         }
@@ -173,20 +172,24 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
   }
 
   # Handle pairwise_effect_samples
-  if (save_options$save_pairwise && "pairwise_effect_samples" %in% names(out)) {
-    col_names = character()  # Vector to store column names
-    for (v1 in 1:(num_variables - 1)) {
-      for (v2 in (v1 + 1):num_variables) {
+  if(save_options$save_pairwise && "pairwise_effect_samples" %in% names(out)) {
+    col_names = character() # Vector to store column names
+    for(v1 in 1:(num_variables - 1)) {
+      for(v2 in (v1 + 1):num_variables) {
         col_names = c(col_names, paste0(data_columnnames[v1], "-", data_columnnames[v2]))
-        for (gr in 2:num_groups) {
-          col_names = c(col_names,
-                        paste0("contrast_#",
-                               gr-1,
-                               "(",
-                               data_columnnames[v1],
-                               "-",
-                               data_columnnames[v2],
-                               ")"))
+        for(gr in 2:num_groups) {
+          col_names = c(
+            col_names,
+            paste0(
+              "contrast_#",
+              gr - 1,
+              "(",
+              data_columnnames[v1],
+              "-",
+              data_columnnames[v2],
+              ")"
+            )
+          )
         }
       }
     }
@@ -196,13 +199,13 @@ prepare_output_bgmCompare = function(out, x, independent_thresholds,
   }
 
   # Handle inclusion_indicator_samples
-  if (difference_selection && save_options$save_indicator && "inclusion_indicator_samples" %in% names(out)) {
+  if(difference_selection && save_options$save_indicator && "inclusion_indicator_samples" %in% names(out)) {
     if(independent_thresholds) {
       #
     } else {
-      col_names = character()  # Vector to store column names
-      for (v1 in 1:num_variables) {
-        for (v2 in v1:num_variables) {
+      col_names = character() # Vector to store column names
+      for(v1 in 1:num_variables) {
+        for(v2 in v1:num_variables) {
           col_names = c(col_names, paste0(data_columnnames[v1], "-", data_columnnames[v2]))
         }
       }

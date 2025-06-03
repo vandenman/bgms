@@ -16,8 +16,10 @@ extract_arguments <- function(bgms_object) {
 #' @export
 extract_arguments.bgms <- function(bgms_object) {
   if(is.null(bgms_object$arguments)) {
-    stop(paste0("Extractor functions have been defined for bgms versions 0.1.3 and up but not \n",
-                "for older versions. The current fit object predates version 0.1.3."))
+    stop(paste0(
+      "Extractor functions have been defined for bgms versions 0.1.3 and up but not \n",
+      "for older versions. The current fit object predates version 0.1.3."
+    ))
   } else {
     return(bgms_object$arguments)
   }
@@ -27,8 +29,10 @@ extract_arguments.bgms <- function(bgms_object) {
 #' @export
 extract_arguments.bgmCompare <- function(bgms_object) {
   if(is.null(bgms_object$arguments)) {
-    stop(paste0("Extractor functions have been defined for bgms versions 0.1.3 and up but not \n",
-                "for older versions. The current fit object predates version 0.1.3."))
+    stop(paste0(
+      "Extractor functions have been defined for bgms versions 0.1.3 and up but not \n",
+      "for older versions. The current fit object predates version 0.1.3."
+    ))
   } else {
     return(bgms_object$arguments)
   }
@@ -52,8 +56,10 @@ extract_indicators.bgms <- function(bgms_object) {
     }
     return(edge_indicators)
   } else {
-    stop(paste0("To access the sampled edge indicators the bgms package needs to be run using \n",
-                "edge_selection = TRUE and save = TRUE."))
+    stop(paste0(
+      "To access the sampled edge indicators the bgms package needs to be run using \n",
+      "edge_selection = TRUE and save = TRUE."
+    ))
   }
 }
 
@@ -69,11 +75,15 @@ extract_indicators.bgmCompare <- function(bgms_object) {
     } else {
       main_difference_indicator = NULL
     }
-    return(list(main_difference_indicator = main_difference_indicator,
-                pairwise_difference_indicator = pairwise_difference_indicator))
+    return(list(
+      main_difference_indicator = main_difference_indicator,
+      pairwise_difference_indicator = pairwise_difference_indicator
+    ))
   } else {
-    stop(paste0("To access the sampled difference indicators the bgmCompare function needs to be run using \n",
-                "difference_selection = TRUE and save = TRUE."))
+    stop(paste0(
+      "To access the sampled difference indicators the bgmCompare function needs to be run using \n",
+      "difference_selection = TRUE and save = TRUE."
+    ))
   }
 }
 
@@ -89,8 +99,10 @@ extract_posterior_inclusion_probabilities.bgms <- function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   if(!arguments$edge_selection) {
-    stop(paste0("To estimate the posterior edge inclusion probabilities, please run the bgm \n",
-                "function with edge_selection = TRUE."))
+    stop(paste0(
+      "To estimate the posterior edge inclusion probabilities, please run the bgm \n",
+      "function with edge_selection = TRUE."
+    ))
   }
 
   if(arguments$save) {
@@ -105,7 +117,6 @@ extract_posterior_inclusion_probabilities.bgms <- function(bgms_object) {
     data_columnnames = arguments$data_columnnames
     colnames(posterior_inclusion_probabilities) = data_columnnames
     rownames(posterior_inclusion_probabilities) = data_columnnames
-
   } else {
     posterior_inclusion_probabilities = bgms_object$indicator
   }
@@ -118,9 +129,11 @@ extract_posterior_inclusion_probabilities.bgmCompare <- function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   if(!arguments$difference_selection) {
-    stop(paste0("To estimate the posterior inclusion probabilities for the between-group \n",
-                "parameter differences , please run the bgmCompare function with \n",
-                "difference_selection = TRUE."))
+    stop(paste0(
+      "To estimate the posterior inclusion probabilities for the between-group \n",
+      "parameter differences , please run the bgmCompare function with \n",
+      "difference_selection = TRUE."
+    ))
   }
 
   if(arguments$save) {
@@ -139,7 +152,6 @@ extract_posterior_inclusion_probabilities.bgmCompare <- function(bgms_object) {
     data_columnnames = arguments$data_columnnames
     colnames(posterior_inclusion_probabilities) = data_columnnames
     rownames(posterior_inclusion_probabilities) = data_columnnames
-
   } else {
     posterior_inclusion_probabilities = bgms_object$indicator
   }
@@ -158,21 +170,29 @@ extract_indicator_priors.bgms <- function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   if(!arguments$edge_selection) {
-    stop(paste0("The bgm function did not perform edge selection, so there are no indicator\n",
-                "priors specified."))
+    stop(paste0(
+      "The bgm function did not perform edge selection, so there are no indicator\n",
+      "priors specified."
+    ))
   } else {
     if(arguments$edge_prior == "Bernoulli") {
-      indicator_prior = list(type = "Bernoulli",
-                             prior_inclusion_probability = arguments$inclusion_probability)
-    } else if (arguments$edge_prior == "Beta-Bernoulli") {
-      indicator_prior = list(type = "Beta-Bernoulli",
-                             alpha = arguments$beta_bernoulli_alpha,
-                             beta = arguments$beta_bernoulli_beta)
-    } else if (arguments$edge_prior == "Stochastic-Block") {
-      indicator_prior = list(type = "Stochastic-Block",
-                             beta_bernoulli_alpha = arguments$beta_bernoulli_alpha,
-                             beta_bernoulli_beta = arguments$beta_bernoulli_beta,
-                             dirichlet_alpha = arguments$dirichlet_alpha)
+      indicator_prior = list(
+        type = "Bernoulli",
+        prior_inclusion_probability = arguments$inclusion_probability
+      )
+    } else if(arguments$edge_prior == "Beta-Bernoulli") {
+      indicator_prior = list(
+        type = "Beta-Bernoulli",
+        alpha = arguments$beta_bernoulli_alpha,
+        beta = arguments$beta_bernoulli_beta
+      )
+    } else if(arguments$edge_prior == "Stochastic-Block") {
+      indicator_prior = list(
+        type = "Stochastic-Block",
+        beta_bernoulli_alpha = arguments$beta_bernoulli_alpha,
+        beta_bernoulli_beta = arguments$beta_bernoulli_beta,
+        dirichlet_alpha = arguments$dirichlet_alpha
+      )
     }
   }
   return(indicator_prior)
@@ -185,16 +205,22 @@ extract_indicator_priors.bgmCompare <- function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   if(!arguments$difference_selection) {
-    stop(paste0("The bgmCompare function did not perform selection on the between-group\n",
-                "differences, so there are no indicator priors specified."))
+    stop(paste0(
+      "The bgmCompare function did not perform selection on the between-group\n",
+      "differences, so there are no indicator priors specified."
+    ))
   } else {
     if(arguments$pairwise_difference_prior == "Bernoulli") {
-      difference_prior = list(pairwise_type = "Bernoulli",
-                              prior_inclusion_probability = arguments$inclusion_probability_difference)
+      difference_prior = list(
+        pairwise_type = "Bernoulli",
+        prior_inclusion_probability = arguments$inclusion_probability_difference
+      )
     } else {
-      difference_prior = list(pairwise_type = "Beta-Bernoulli",
-                              pairwise_alpha = arguments$pairwise_beta_bernoulli_alpha,
-                              pairwise_beta = arguments$pairwise_beta_bernoulli_beta)
+      difference_prior = list(
+        pairwise_type = "Beta-Bernoulli",
+        pairwise_alpha = arguments$pairwise_beta_bernoulli_alpha,
+        pairwise_beta = arguments$pairwise_beta_bernoulli_beta
+      )
     }
     if(!arguments$independent_thresholds) {
       if(arguments$main_difference_prior == "Bernoulli") {
@@ -245,15 +271,19 @@ extract_main_difference.bgmCompare <- function(bgms_object) {
 #' @rdname extractor_functions
 #' @export
 extract_edge_indicators <- function(bgms_object) {
-  warning(paste0("The ``extract_edge_indicators'' function is deprecated and will be removed in a \n",
-                 "future release of bgms. Please use the ``extract_indicators'' function instead."))
+  warning(paste0(
+    "The ``extract_edge_indicators'' function is deprecated and will be removed in a \n",
+    "future release of bgms. Please use the ``extract_indicators'' function instead."
+  ))
   return(extract_indicators(bgms_object))
 }
 
 #' @rdname extractor_functions
 #' @export
 extract_pairwise_thresholds <- function(bgms_object) {
-  warning(paste0("The ``extract_pairwise_thresholds'' function is deprecated and will be removed in a \n",
-                 "future release of bgms. Please use the ``extract_category_thresholds'' function instead."))
+  warning(paste0(
+    "The ``extract_pairwise_thresholds'' function is deprecated and will be removed in a \n",
+    "future release of bgms. Please use the ``extract_category_thresholds'' function instead."
+  ))
   return(extract_category_thresholds(bgms_object))
 }
