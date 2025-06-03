@@ -49,21 +49,30 @@ print.bgmCompare <- function(x, ...) {
   arguments = extract_arguments(x)
   if(arguments$difference_selection) {
     if(arguments$pairwise_difference_prior == "Bernoulli") {
-      cat(paste0("Bayesian Variable Selection using a Bernoulli prior on the inclusion of \n",
-                 "differences in pairwise interactions\n"))
+      cat(paste0(
+        "Bayesian Variable Selection using a Bernoulli prior on the inclusion of \n",
+        "differences in pairwise interactions\n"
+      ))
     } else {
-      cat(paste0("Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of \n",
-                 "differences in pairwise interactions\n"))
+      cat(paste0(
+        "Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of \n",
+        "differences in pairwise interactions\n"
+      ))
     }
     if(arguments$main_difference_model == "Free") {
       cat("Group specific category threshold parameters were estimated")
     } else {
       if(arguments$main_difference_prior == "Bernoulli") {
-        cat(paste0("Bayesian Variable Selection using a Bernoulli prior on the inclusion of\n",
-                   "differences in the category thresholds\n"))
+        cat(paste0(
+          "Bayesian Variable Selection using a Bernoulli prior on the inclusion of\n",
+          "differences in the category thresholds\n"
+        ))
       } else {
-        cat(paste0("Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of\n",
-                   "differences in the category thresholds\n"))      }
+        cat(paste0(
+          "Bayesian Variable Selection using a Beta-Bernoulli prior on the inclusion of\n",
+          "differences in the category thresholds\n"
+        ))
+      }
     }
   } else {
     cat("Bayesian Estimation\n")
@@ -73,11 +82,11 @@ print.bgmCompare <- function(x, ...) {
   num_groups = length(unique(arguments$group))
   if(arguments$na_impute) {
     for(group in 1:num_groups) {
-      cat(paste0(" Number of cases Group ", group,": ", arguments$num_cases[group], " (missings imputed)\n"))
+      cat(paste0(" Number of cases Group ", group, ": ", arguments$num_cases[group], " (missings imputed)\n"))
     }
   } else {
     for(group in 1:num_groups) {
-      cat(paste0(" Number of cases Group ", group,": ", arguments$num_cases[group],"\n"))
+      cat(paste0(" Number of cases Group ", group, ": ", arguments$num_cases[group], "\n"))
     }
   }
   if(arguments$save) {

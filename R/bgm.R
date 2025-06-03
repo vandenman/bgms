@@ -207,86 +207,93 @@
 #'
 #' @examples
 #' \donttest{
-#'  #Store user par() settings
-#'  op <- par(no.readonly = TRUE)
+#' # Store user par() settings
+#' op <- par(no.readonly = TRUE)
 #'
-#'  ##Analyse the Wenchuan dataset
+#' ## Analyse the Wenchuan dataset
 #'
-#'  # Here, we use 1e4 iterations, for an actual analysis please use at least
-#'  # 1e5 iterations.
-#'  fit = bgm(x = Wenchuan)
-#'
-#'
-#'  #------------------------------------------------------------------------------|
-#'  # INCLUSION - EDGE WEIGHT PLOT
-#'  #------------------------------------------------------------------------------|
-#'
-#'  par(mar = c(6, 5, 1, 1))
-#'  plot(x = fit$interactions[lower.tri(fit$interactions)],
-#'       y = fit$indicator[lower.tri(fit$indicator)], ylim = c(0, 1),
-#'       xlab = "", ylab = "", axes = FALSE, pch = 21, bg = "gray", cex = 1.3)
-#'  abline(h = 0, lty = 2, col = "gray")
-#'  abline(h = 1, lty = 2, col = "gray")
-#'  abline(h = .5, lty = 2, col = "gray")
-#'  mtext("Posterior Mode Edge Weight", side = 1, line = 3, cex = 1.7)
-#'  mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
-#'  axis(1)
-#'  axis(2, las = 1)
+#' # Here, we use 1e4 iterations, for an actual analysis please use at least
+#' # 1e5 iterations.
+#' fit = bgm(x = Wenchuan)
 #'
 #'
-#'  #------------------------------------------------------------------------------|
-#'  # EVIDENCE - EDGE WEIGHT PLOT
-#'  #------------------------------------------------------------------------------|
+#' #------------------------------------------------------------------------------|
+#' # INCLUSION - EDGE WEIGHT PLOT
+#' #------------------------------------------------------------------------------|
 #'
-#'  #For the default choice of the structure prior, the prior odds equal one:
-#'  prior.odds = 1
-#'  posterior.inclusion = fit$indicator[lower.tri(fit$indicator)]
-#'  posterior.odds = posterior.inclusion / (1 - posterior.inclusion)
-#'  log.bayesfactor = log(posterior.odds / prior.odds)
-#'  log.bayesfactor[log.bayesfactor > 5] = 5
-#'
-#'  par(mar = c(5, 5, 1, 1) + 0.1)
-#'  plot(fit$interactions[lower.tri(fit$interactions)], log.bayesfactor, pch = 21, bg = "#bfbfbf",
-#'       cex = 1.3, axes = FALSE, xlab = "", ylab = "", ylim = c(-5, 5.5),
-#'       xlim = c(-0.5, 1.5))
-#'  axis(1)
-#'  axis(2, las = 1)
-#'  abline(h = log(1/10), lwd = 2, col = "#bfbfbf")
-#'  abline(h = log(10), lwd = 2, col = "#bfbfbf")
-#'
-#'  text(x = 1, y = log(1 / 10), labels = "Evidence for Exclusion", pos = 1,
-#'       cex = 1.7)
-#'  text(x = 1, y = log(10), labels = "Evidence for Inclusion", pos = 3, cex = 1.7)
-#'  text(x = 1, y = 0, labels = "Absence of Evidence", cex = 1.7)
-#'  mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.5, las = 0)
-#'  mtext("Posterior Mean Interactions ", side = 1, line = 3.7, cex = 1.5, las = 0)
+#' par(mar = c(6, 5, 1, 1))
+#' plot(
+#'   x = fit$interactions[lower.tri(fit$interactions)],
+#'   y = fit$indicator[lower.tri(fit$indicator)], ylim = c(0, 1),
+#'   xlab = "", ylab = "", axes = FALSE, pch = 21, bg = "gray", cex = 1.3
+#' )
+#' abline(h = 0, lty = 2, col = "gray")
+#' abline(h = 1, lty = 2, col = "gray")
+#' abline(h = .5, lty = 2, col = "gray")
+#' mtext("Posterior Mode Edge Weight", side = 1, line = 3, cex = 1.7)
+#' mtext("Posterior Inclusion Probability", side = 2, line = 3, cex = 1.7)
+#' axis(1)
+#' axis(2, las = 1)
 #'
 #'
-#'  #------------------------------------------------------------------------------|
-#'  # THE MEDIAN PROBABILITY NETWORK
-#'  #------------------------------------------------------------------------------|
+#' #------------------------------------------------------------------------------|
+#' # EVIDENCE - EDGE WEIGHT PLOT
+#' #------------------------------------------------------------------------------|
 #'
-#'  tmp = fit$interactions[lower.tri(fit$interactions)]
-#'  tmp[posterior.inclusion < 0.5] = 0
+#' # For the default choice of the structure prior, the prior odds equal one:
+#' prior.odds = 1
+#' posterior.inclusion = fit$indicator[lower.tri(fit$indicator)]
+#' posterior.odds = posterior.inclusion / (1 - posterior.inclusion)
+#' log.bayesfactor = log(posterior.odds / prior.odds)
+#' log.bayesfactor[log.bayesfactor > 5] = 5
 #'
-#'  median.prob.model = matrix(0, nrow = ncol(Wenchuan), ncol = ncol(Wenchuan))
-#'  median.prob.model[lower.tri(median.prob.model)] = tmp
-#'  median.prob.model = median.prob.model + t(median.prob.model)
+#' par(mar = c(5, 5, 1, 1) + 0.1)
+#' plot(fit$interactions[lower.tri(fit$interactions)], log.bayesfactor,
+#'   pch = 21, bg = "#bfbfbf",
+#'   cex = 1.3, axes = FALSE, xlab = "", ylab = "", ylim = c(-5, 5.5),
+#'   xlim = c(-0.5, 1.5)
+#' )
+#' axis(1)
+#' axis(2, las = 1)
+#' abline(h = log(1 / 10), lwd = 2, col = "#bfbfbf")
+#' abline(h = log(10), lwd = 2, col = "#bfbfbf")
 #'
-#'  rownames(median.prob.model) = colnames(Wenchuan)
-#'  colnames(median.prob.model) = colnames(Wenchuan)
+#' text(
+#'   x = 1, y = log(1 / 10), labels = "Evidence for Exclusion", pos = 1,
+#'   cex = 1.7
+#' )
+#' text(x = 1, y = log(10), labels = "Evidence for Inclusion", pos = 3, cex = 1.7)
+#' text(x = 1, y = 0, labels = "Absence of Evidence", cex = 1.7)
+#' mtext("Log-Inclusion Bayes Factor", side = 2, line = 3, cex = 1.5, las = 0)
+#' mtext("Posterior Mean Interactions ", side = 1, line = 3.7, cex = 1.5, las = 0)
 #'
-#'  library(qgraph)
-#'  qgraph(median.prob.model,
-#'         theme = "TeamFortress",
-#'         maximum = .5,
-#'         fade = FALSE,
-#'         color = c("#f0ae0e"), vsize = 10, repulsion = .9,
-#'         label.cex = 1.1, label.scale = "FALSE",
-#'         labels = colnames(Wenchuan))
 #'
-#'  #Restore user par() settings
-#'  par(op)
+#' #------------------------------------------------------------------------------|
+#' # THE MEDIAN PROBABILITY NETWORK
+#' #------------------------------------------------------------------------------|
+#'
+#' tmp = fit$interactions[lower.tri(fit$interactions)]
+#' tmp[posterior.inclusion < 0.5] = 0
+#'
+#' median.prob.model = matrix(0, nrow = ncol(Wenchuan), ncol = ncol(Wenchuan))
+#' median.prob.model[lower.tri(median.prob.model)] = tmp
+#' median.prob.model = median.prob.model + t(median.prob.model)
+#'
+#' rownames(median.prob.model) = colnames(Wenchuan)
+#' colnames(median.prob.model) = colnames(Wenchuan)
+#'
+#' library(qgraph)
+#' qgraph(median.prob.model,
+#'   theme = "TeamFortress",
+#'   maximum = .5,
+#'   fade = FALSE,
+#'   color = c("#f0ae0e"), vsize = 10, repulsion = .9,
+#'   label.cex = 1.1, label.scale = "FALSE",
+#'   labels = colnames(Wenchuan)
+#' )
+#'
+#' # Restore user par() settings
+#' par(op)
 #' }
 #'
 #' @importFrom utils packageVersion
@@ -312,33 +319,36 @@ bgm = function(x,
                na_action = c("listwise", "impute"),
                save = FALSE,
                display_progress = TRUE) {
-
-
-
-  #Check data input ------------------------------------------------------------
-  if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
+  # Check data input ------------------------------------------------------------
+  if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame")) {
     stop("The input x needs to be a matrix or dataframe.")
-  if(inherits(x, what = "data.frame"))
+  }
+  if(inherits(x, what = "data.frame")) {
     x = data.matrix(x)
-  if(ncol(x) < 2)
+  }
+  if(ncol(x) < 2) {
     stop("The matrix x should have more than one variable (columns).")
-  if(nrow(x) < 2)
+  }
+  if(nrow(x) < 2) {
     stop("The matrix x should have more than one observation (rows).")
+  }
 
-  #Check model input -----------------------------------------------------------
-  model = check_model(x = x,
-                      variable_type = variable_type,
-                      reference_category = reference_category,
-                      interaction_scale = interaction_scale,
-                      threshold_alpha = threshold_alpha,
-                      threshold_beta = threshold_beta,
-                      edge_selection = edge_selection,
-                      edge_prior = edge_prior,
-                      inclusion_probability = inclusion_probability,
-                      beta_bernoulli_alpha = beta_bernoulli_alpha,
-                      beta_bernoulli_beta = beta_bernoulli_beta,
-                      dirichlet_alpha = dirichlet_alpha,
-                      lambda = lambda)
+  # Check model input -----------------------------------------------------------
+  model = check_model(
+    x = x,
+    variable_type = variable_type,
+    reference_category = reference_category,
+    interaction_scale = interaction_scale,
+    threshold_alpha = threshold_alpha,
+    threshold_beta = threshold_beta,
+    edge_selection = edge_selection,
+    edge_prior = edge_prior,
+    inclusion_probability = inclusion_probability,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha,
+    lambda = lambda
+  )
 
   # ----------------------------------------------------------------------------
   # The vector variable_type is now coded as boolean.
@@ -352,41 +362,54 @@ bgm = function(x,
   edge_prior = model$edge_prior
   theta = model$theta
 
-  #Check Gibbs input -----------------------------------------------------------
-  if(abs(iter - round(iter)) > .Machine$double.eps)
+  # Check Gibbs input -----------------------------------------------------------
+  if(abs(iter - round(iter)) > .Machine$double.eps) {
     stop("Parameter ``iter'' needs to be a positive integer.")
-  if(iter <= 0)
+  }
+  if(iter <= 0) {
     stop("Parameter ``iter'' needs to be a positive integer.")
-  if(abs(burnin - round(burnin)) > .Machine$double.eps || burnin < 0)
+  }
+  if(abs(burnin - round(burnin)) > .Machine$double.eps || burnin < 0) {
     stop("Parameter ``burnin'' needs to be a non-negative integer.")
-  if(burnin <= 0)
+  }
+  if(burnin <= 0) {
     stop("Parameter ``burnin'' needs to be a positive integer.")
+  }
 
-  #Check na_action -------------------------------------------------------------
+  # Check na_action -------------------------------------------------------------
   na_action_input = na_action
   na_action = try(match.arg(na_action), silent = TRUE)
-  if(inherits(na_action, what = "try-error"))
-    stop(paste0("The na_action argument should equal listwise or impute, not ",
-                na_action_input,
-                "."))
-  #Check save ------------------------------------------------------------------
+  if(inherits(na_action, what = "try-error")) {
+    stop(paste0(
+      "The na_action argument should equal listwise or impute, not ",
+      na_action_input,
+      "."
+    ))
+  }
+  # Check save ------------------------------------------------------------------
   save_input = save
   save = as.logical(save)
-  if(is.na(save))
-    stop(paste0("The save argument should equal TRUE or FALSE, not ",
-                save_input,
-                "."))
+  if(is.na(save)) {
+    stop(paste0(
+      "The save argument should equal TRUE or FALSE, not ",
+      save_input,
+      "."
+    ))
+  }
 
-  #Check display_progress ------------------------------------------------------
+  # Check display_progress ------------------------------------------------------
   display_progress = as.logical(display_progress)
-  if(is.na(display_progress))
+  if(is.na(display_progress)) {
     stop("The display_progress argument should equal TRUE or FALSE.")
+  }
 
-  #Format the data input -------------------------------------------------------
-  data = reformat_data(x = x,
-                       na_action = na_action,
-                       variable_bool = variable_bool,
-                       reference_category = reference_category)
+  # Format the data input -------------------------------------------------------
+  data = reformat_data(
+    x = x,
+    na_action = na_action,
+    variable_bool = variable_bool,
+    reference_category = reference_category
+  )
   x = data$x
   no_categories = data$no_categories
   missing_index = data$missing_index
@@ -397,60 +420,65 @@ bgm = function(x,
   no_interactions = no_variables * (no_variables - 1) / 2
   no_thresholds = sum(no_categories)
 
-  #Specify the variance of the (normal) proposal distribution ------------------
+  # Specify the variance of the (normal) proposal distribution ------------------
   proposal_sd = matrix(1,
-                       nrow = no_variables,
-                       ncol = no_variables)
+    nrow = no_variables,
+    ncol = no_variables
+  )
   proposal_sd_blumecapel = matrix(1,
-                                  nrow = no_variables,
-                                  ncol = 2)
+    nrow = no_variables,
+    ncol = 2
+  )
 
   # Starting value of model matrix ---------------------------------------------
   indicator = matrix(1,
-                 nrow = no_variables,
-                 ncol = no_variables)
+    nrow = no_variables,
+    ncol = no_variables
+  )
 
 
-  #Starting values of interactions and thresholds (posterior mode) -------------
+  # Starting values of interactions and thresholds (posterior mode) -------------
   interactions = matrix(0, nrow = no_variables, ncol = no_variables)
   thresholds = matrix(0, nrow = no_variables, ncol = max(no_categories))
 
-  #Precompute the number of observations per category for each variable --------
+  # Precompute the number of observations per category for each variable --------
   n_cat_obs = matrix(0,
-                     nrow = max(no_categories) + 1,
-                     ncol = no_variables)
+    nrow = max(no_categories) + 1,
+    ncol = no_variables
+  )
   for(variable in 1:no_variables) {
     for(category in 0:no_categories[variable]) {
       n_cat_obs[category + 1, variable] = sum(x[, variable] == category)
     }
   }
 
-  #Precompute the sufficient statistics for the two Blume-Capel parameters -----
+  # Precompute the sufficient statistics for the two Blume-Capel parameters -----
   sufficient_blume_capel = matrix(0, nrow = 2, ncol = no_variables)
   if(any(!variable_bool)) {
     # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
     bc_vars = which(!variable_bool)
     for(i in bc_vars) {
       sufficient_blume_capel[1, i] = sum(x[, i])
-      sufficient_blume_capel[2, i] = sum((x[, i] - reference_category[i]) ^ 2)
+      sufficient_blume_capel[2, i] = sum((x[, i] - reference_category[i])^2)
     }
   }
 
   # Index vector used to sample interactions in a random order -----------------
   Index = matrix(0,
-                 nrow = no_variables * (no_variables - 1) / 2,
-                 ncol = 3)
+    nrow = no_variables * (no_variables - 1) / 2,
+    ncol = 3
+  )
   cntr = 0
   for(variable1 in 1:(no_variables - 1)) {
     for(variable2 in (variable1 + 1):no_variables) {
-      cntr =  cntr + 1
+      cntr = cntr + 1
       Index[cntr, 1] = cntr
       Index[cntr, 2] = variable1 - 1
       Index[cntr, 3] = variable2 - 1
     }
   }
 
-  #Preparing the output --------------------------------------------------------
+  # Preparing the output --------------------------------------------------------
   arguments = list(
     no_variables = no_variables,
     no_cases = nrow(x),
@@ -464,8 +492,8 @@ bgm = function(x,
     edge_selection = edge_selection,
     edge_prior = edge_prior,
     inclusion_probability = theta,
-    beta_bernoulli_alpha = beta_bernoulli_alpha ,
-    beta_bernoulli_beta =  beta_bernoulli_beta,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
     dirichlet_alpha = dirichlet_alpha,
     lambda = lambda,
     na_action = na_action,
@@ -473,35 +501,37 @@ bgm = function(x,
     version = packageVersion("bgms")
   )
 
-  #The Metropolis within Gibbs sampler -----------------------------------------
-  out = gibbs_sampler(observations = x,
-                      indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      no_categories  = no_categories,
-                      interaction_scale = interaction_scale,
-                      proposal_sd = proposal_sd,
-                      proposal_sd_blumecapel = proposal_sd_blumecapel,
-                      edge_prior = edge_prior,
-                      theta = theta,
-                      beta_bernoulli_alpha = beta_bernoulli_alpha,
-                      beta_bernoulli_beta = beta_bernoulli_beta,
-                      dirichlet_alpha = dirichlet_alpha,
-                      lambda = lambda,
-                      Index = Index,
-                      iter = iter,
-                      burnin = burnin,
-                      n_cat_obs = n_cat_obs,
-                      sufficient_blume_capel = sufficient_blume_capel,
-                      threshold_alpha = threshold_alpha,
-                      threshold_beta = threshold_beta,
-                      na_impute = na_impute,
-                      missing_index = missing_index,
-                      variable_bool = variable_bool,
-                      reference_category = reference_category,
-                      save = save,
-                      display_progress = display_progress,
-                      edge_selection = edge_selection)
+  # The Metropolis within Gibbs sampler -----------------------------------------
+  out = gibbs_sampler(
+    observations = x,
+    indicator = indicator,
+    interactions = interactions,
+    thresholds = thresholds,
+    no_categories = no_categories,
+    interaction_scale = interaction_scale,
+    proposal_sd = proposal_sd,
+    proposal_sd_blumecapel = proposal_sd_blumecapel,
+    edge_prior = edge_prior,
+    theta = theta,
+    beta_bernoulli_alpha = beta_bernoulli_alpha,
+    beta_bernoulli_beta = beta_bernoulli_beta,
+    dirichlet_alpha = dirichlet_alpha,
+    lambda = lambda,
+    Index = Index,
+    iter = iter,
+    burnin = burnin,
+    n_cat_obs = n_cat_obs,
+    sufficient_blume_capel = sufficient_blume_capel,
+    threshold_alpha = threshold_alpha,
+    threshold_beta = threshold_beta,
+    na_impute = na_impute,
+    missing_index = missing_index,
+    variable_bool = variable_bool,
+    reference_category = reference_category,
+    save = save,
+    display_progress = display_progress,
+    edge_selection = edge_selection
+  )
 
   if(save == FALSE) {
     if(edge_selection == TRUE) {
@@ -510,7 +540,7 @@ bgm = function(x,
     interactions = out$interactions
     tresholds = out$thresholds
 
-    if(is.null(colnames(x))){
+    if(is.null(colnames(x))) {
       data_columnnames = paste0("variable ", 1:no_variables)
       colnames(interactions) = data_columnnames
       rownames(interactions) = data_columnnames
@@ -540,28 +570,30 @@ bgm = function(x,
     arguments$data_columnnames = data_columnnames
 
     if(edge_selection == TRUE) {
-      if(edge_prior == "Stochastic-Block"){
+      if(edge_prior == "Stochastic-Block") {
         output = list(
           indicator = indicator, interactions = interactions,
           thresholds = thresholds, allocations = out$allocations,
-          arguments = arguments)
+          arguments = arguments
+        )
         class(output) = "bgms"
         summary_Sbm = summarySBM(output,
-                                 internal_call = TRUE)
+          internal_call = TRUE
+        )
 
         output$components = summary_Sbm$components
         output$allocations = summary_Sbm$allocations
       } else {
-
         output = list(
           indicator = indicator, interactions = interactions,
-          thresholds = thresholds, arguments = arguments)
-        }
-
+          thresholds = thresholds, arguments = arguments
+        )
+      }
     } else {
       output = list(
         interactions = interactions, thresholds = thresholds,
-        arguments = arguments)
+        arguments = arguments
+      )
     }
 
     class(output) = "bgms"
@@ -572,7 +604,7 @@ bgm = function(x,
     interactions = out$interactions
     thresholds = out$thresholds
 
-    if(is.null(colnames(x))){
+    if(is.null(colnames(x))) {
       data_columnnames <- 1:ncol(x)
     } else {
       data_columnnames <- colnames(x)
@@ -592,7 +624,7 @@ bgm = function(x,
     for(variable in 1:no_variables) {
       for(category in 1:no_categories[variable]) {
         cntr = cntr + 1
-        names[cntr] = paste0("threshold(",variable, ", ",category,")")
+        names[cntr] = paste0("threshold(", variable, ", ", category, ")")
       }
     }
     colnames(thresholds) = names
@@ -606,22 +638,28 @@ bgm = function(x,
     arguments$data_columnnames = data_columnnames
 
     if(edge_selection == TRUE) {
-      if(edge_prior == "Stochastic-Block"){
-        output = list(indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      allocations = out$allocations,
-                      arguments = arguments)
+      if(edge_prior == "Stochastic-Block") {
+        output = list(
+          indicator = indicator,
+          interactions = interactions,
+          thresholds = thresholds,
+          allocations = out$allocations,
+          arguments = arguments
+        )
       } else {
-        output = list(indicator = indicator,
-                      interactions = interactions,
-                      thresholds = thresholds,
-                      arguments = arguments)
+        output = list(
+          indicator = indicator,
+          interactions = interactions,
+          thresholds = thresholds,
+          arguments = arguments
+        )
       }
     } else {
-      output = list(interactions = interactions,
-                    thresholds = thresholds,
-                    arguments = arguments)
+      output = list(
+        interactions = interactions,
+        thresholds = thresholds,
+        arguments = arguments
+      )
     }
     class(output) = "bgms"
   }

@@ -9,5 +9,4 @@ test_that("inclusion probabilities correlate with posterior mode", {
   posterior_incl_probs = posterior_incl_probs[lower.tri(posterior_incl_probs)]
 
   testthat::expect_gte(cor(abs(posterior_modes), posterior_incl_probs, method = "spearman"), .9)
-
 })
