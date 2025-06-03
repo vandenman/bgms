@@ -313,6 +313,8 @@ bgm = function(x,
                save = FALSE,
                display_progress = TRUE) {
 
+
+
   #Check data input ------------------------------------------------------------
   if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame"))
     stop("The input x needs to be a matrix or dataframe.")
