@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">bgms</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.4.3</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -23,7 +23,7 @@
 <li class="active nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/MaartenMarsman/bgms/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul></div>
 
 
@@ -33,7 +33,7 @@
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Changelog</h1>
-      <small>Source: <a href="https://github.com/MaartenMarsman/bgms/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
+      <small>Source: <a href="https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
     <div class="section level2">
@@ -42,17 +42,21 @@
 <h3 id="new-features-0-1-4-3">New features<a class="anchor" aria-label="anchor" href="#new-features-0-1-4-3"></a></h3>
 <ul><li>The bgmCompare function now allows for network comparison for two or more groups.</li>
 <li>The new summary_sbm function can be used to summarize the output from the bgm function with the “Stochastic-Block” prior.</li>
+<li>Two new data sets are included in the package: ADHD and Boredom.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="other-changes-0-1-4-3">Other changes<a class="anchor" aria-label="anchor" href="#other-changes-0-1-4-3"></a></h3>
 <ul><li>The bgm function with the “Stochastic-Block” prior can now also return the sampled allocations and block probabilities, and sample and return the number of blocks.</li>
 <li>The underlying R and c++ functions received a massive update to improve their efficiency and maintainance.</li>
+<li>Repository moved to the Bayesian Graphical Modelling Lab organization.</li>
+<li>Included custom c++ implementations for exp and log on Windows.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="bug-fixes-0-1-4-3">Bug fixes<a class="anchor" aria-label="anchor" href="#bug-fixes-0-1-4-3"></a></h3>
 <ul><li>Fixed a bug in the bgmCompare function with selecting group differences of blume-capel parameters. Parameter differences that were not selected and should be fixed to zero were still updated.</li>
 <li>Fixed a bug in the bgmCompare function with handling the samples of blume-capel parameters. Output was not properly stored.</li>
 <li>Fixed a bug in the bgmCompare function with handling threshold estimation when missing categories and main_model = “Free”. The sufficient statistics and number of categories were not computed correctly.</li>
+<li>Partially fixed a bug in which the bgms package is slower on Windows than on Linux or MacOS. This is because the computation of exp and log using the gcc compiler for Windows is really slow. With a custom c++ implementation, the speed is now closer to the speed achieved on Linux and MacOS.</li>
 </ul></div>
 </div>
     <div class="section level2">
