@@ -51,8 +51,10 @@ double log_pseudoposterior_main_effects_component (
     const double main_beta,
     const int variable,
     const int category,
-    const int parameter
+    const int parameter,
+    int* num_evals
 ) {
+  if (num_evals) (*num_evals)++;
   const int num_persons = residual_matrix.n_rows;
   double log_posterior = 0.0;
 
@@ -168,8 +170,10 @@ double log_pseudoposterior_interactions_component (
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const int var1,
-    const int var2
+    const int var2,
+    int* num_evals
 ) {
+  if (num_evals) (*num_evals)++;
   const int num_observations = observations.n_rows;
 
   double log_pseudo_posterior = 2.0 * pairwise_effects(var1, var2) * pairwise_stats(var1, var2);
@@ -267,8 +271,10 @@ double log_pseudoposterior (
     const double main_beta,
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
+    const arma::mat& residual_matrix,
+    int* num_evals
 ) {
+  if (num_evals) (*num_evals)++;
 
   const int num_variables = observations.n_cols;
   const int num_persons = observations.n_rows;
@@ -390,8 +396,10 @@ arma::vec gradient_log_pseudoposterior(
     const double main_beta,
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
+    const arma::mat& residual_matrix,
+    int* num_evals
 ) {
+  if (num_evals) (*num_evals)++;
   const int num_variables = observations.n_cols;
   const int num_persons   = observations.n_rows;
   const int num_main      = count_num_main_effects(num_categories, is_ordinal_variable);
@@ -687,8 +695,10 @@ double log_pseudolikelihood_ratio_interaction (
     const arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const arma::imat& pairwise_stats
+    const arma::imat& pairwise_stats,
+    int* num_evals
 ) {
+  if (num_evals) (*num_evals)++;
   double log_ratio = 0.0;
   const double delta = proposed_state - current_state;
 

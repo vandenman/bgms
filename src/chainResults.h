@@ -28,4 +28,6 @@ struct ChainResult {
   arma::vec energy_samples;
   arma::imat indicator_samples;
   arma::imat allocation_samples;
+  int num_likelihood_evaluations;
+  int num_gradient_evaluations;
 };

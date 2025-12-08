@@ -299,7 +299,8 @@ void update_main_effects_metropolis_bgm (
     arma::mat& proposal_sd_main,
     RWMAdaptationController& adapter,
     const int iteration,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals
 ) {
   const int num_vars = observations.n_cols;
   arma::umat index_mask_main = arma::ones<arma::umat>(proposal_sd_main.n_rows, proposal_sd_main.n_cols);
@@ -317,7 +318,7 @@ void update_main_effects_metropolis_bgm (
           return log_pseudoposterior_main_effects_component(
             main_effects, residual_matrix, num_categories, counts_per_category,
             blume_capel_stats, baseline_category, is_ordinal_variable,
-            main_alpha, main_beta, variable, category, -1
+            main_alpha, main_beta, variable, category, -1, &num_likelihood_evals
           );
         };
 
@@ -337,7 +338,7 @@ void update_main_effects_metropolis_bgm (
             main_effects, residual_matrix, num_categories, counts_per_category,
             blume_capel_stats, baseline_category, is_ordinal_variable,
             main_alpha, main_beta,
-            variable, -1, parameter
+            variable, -1, parameter, &num_likelihood_evals
           );
         };
 
@@ -408,7 +409,8 @@ void update_pairwise_effects_metropolis_bgm (
     const arma::ivec& baseline_category,
     const int iteration,
     const arma::imat& pairwise_stats,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals
 ) {
   arma::mat accept_prob_pairwise = arma::zeros<arma::mat>(num_variables, num_variables);
   arma::umat index_mask_pairwise = arma::zeros<arma::umat>(num_variables, num_variables);
@@ -427,7 +429,7 @@ void update_pairwise_effects_metropolis_bgm (
           return log_pseudoposterior_interactions_component(
             pairwise_effects, main_effects, observations, num_categories,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            pairwise_scale, pairwise_stats, variable1, variable2
+            pairwise_scale, pairwise_stats, variable1, variable2, &num_likelihood_evals
           );
         };
 
@@ -514,7 +516,9 @@ void update_hmc_bgm(
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
     const bool selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals,
+    int& num_gradient_evals
 ) {
   arma::vec current_state = vectorize_model_parameters_bgm(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -533,7 +537,7 @@ void update_hmc_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,
-      main_beta, pairwise_scale, pairwise_stats, rm
+      main_beta, pairwise_scale, pairwise_stats, rm, &num_gradient_evals
     );
   };
 
@@ -545,7 +549,7 @@ void update_hmc_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm, &num_likelihood_evals
     );
   };
 
@@ -634,7 +638,9 @@ SamplerResult update_nuts_bgm(
     HMCAdaptationController& adapt,
     const bool learn_mass_matrix,
     const bool selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals,
+    int& num_gradient_evals
 ) {
   arma::vec current_state = vectorize_model_parameters_bgm(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -654,7 +660,7 @@ SamplerResult update_nuts_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha,
-      main_beta, pairwise_scale, pairwise_stats, rm
+      main_beta, pairwise_scale, pairwise_stats, rm, &num_gradient_evals
     );
   };
 
@@ -667,7 +673,7 @@ SamplerResult update_nuts_bgm(
       current_main, current_pair, inclusion_indicator, observations,
       num_categories, counts_per_category, blume_capel_stats,
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
-      pairwise_scale, pairwise_stats, rm
+      pairwise_scale, pairwise_stats, rm, &num_likelihood_evals
     );
   };
 
@@ -750,6 +756,7 @@ void tune_proposal_sd_bgm(
     int iteration,
     const WarmupSchedule& sched,
     SafeRNG& rng,
+    int& num_likelihood_evals,
     double target_accept = 0.44,
     double rm_decay = 0.75
 )
@@ -774,7 +781,7 @@ void tune_proposal_sd_bgm(
         return log_pseudoposterior_interactions_component(
           pairwise_effects, main_effects, observations, num_categories,
           inclusion_indicator, is_ordinal_variable, baseline_category,
-          pairwise_scale, pairwise_stats, variable1, variable2
+          pairwise_scale, pairwise_stats, variable1, variable2, &num_likelihood_evals
         );
       };
 
@@ -863,7 +870,8 @@ void update_indicator_edges_metropolis_bgm (
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
     const arma::imat& pairwise_stats,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals
 ) {
   for (int cntr = 0; cntr < num_interactions; cntr++) {
     const int variable1 = index(cntr, 1);
@@ -879,7 +887,7 @@ void update_indicator_edges_metropolis_bgm (
     double log_accept = log_pseudolikelihood_ratio_interaction (
       pairwise_effects, main_effects, observations, num_categories, num_persons,
       variable1, variable2, proposed_state, current_state, residual_matrix,
-      is_ordinal_variable, baseline_category, pairwise_stats
+      is_ordinal_variable, baseline_category, pairwise_stats, &num_likelihood_evals
     );
 
     // Add prior ratio and proposal correction
@@ -1027,7 +1035,9 @@ void gibbs_update_step_bgm (
     arma::ivec& treedepth_samples,
     arma::ivec& divergent_samples,
     arma::vec& energy_samples,
-    SafeRNG& rng
+    SafeRNG& rng,
+    int& num_likelihood_evals,
+    int& num_gradient_evals
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -1045,7 +1055,7 @@ void gibbs_update_step_bgm (
         num_categories, proposal_sd_pairwise, pairwise_scale, index,
         num_pairwise, num_persons, residual_matrix, inclusion_probability,
         is_ordinal_variable, baseline_category, pairwise_stats,
-        rng
+        rng, num_likelihood_evals
     );
   }
 
@@ -1055,7 +1065,7 @@ void gibbs_update_step_bgm (
         pairwise_effects, main_effects, inclusion_indicator, observations,
         num_categories, proposal_sd_pairwise, adapt_pairwise, pairwise_scale,
         num_variables, residual_matrix, is_ordinal_variable, baseline_category,
-        iteration, pairwise_stats, rng
+        iteration, pairwise_stats, rng, num_likelihood_evals
     );
   }
 
@@ -1066,7 +1076,7 @@ void gibbs_update_step_bgm (
         blume_capel_stats, baseline_category, is_ordinal_variable,
         num_persons, main_alpha, main_beta, residual_matrix,
         proposal_sd_main, adapt_main, iteration,
-        rng
+        rng, num_likelihood_evals
     );
   }
 
@@ -1078,7 +1088,7 @@ void gibbs_update_step_bgm (
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
       pairwise_scale, residual_matrix, pairwise_stats, hmc_num_leapfrogs,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
-      rng
+      rng, num_likelihood_evals, num_gradient_evals
     );
   } else if (update_method == nuts) {
     SamplerResult result = update_nuts_bgm(
@@ -1087,7 +1097,7 @@ void gibbs_update_step_bgm (
       baseline_category, is_ordinal_variable, main_alpha, main_beta,
       pairwise_scale, pairwise_stats, residual_matrix, nuts_max_depth,
       iteration, adapt, learn_mass_matrix, schedule.selection_enabled(iteration),
-      rng
+      rng, num_likelihood_evals, num_gradient_evals
     );
     if (iteration >= schedule.total_warmup) {
       int sample_index = iteration - schedule.total_warmup;
@@ -1104,7 +1114,7 @@ void gibbs_update_step_bgm (
     proposal_sd_pairwise, pairwise_effects, main_effects, inclusion_indicator,
     observations, residual_matrix, num_categories, is_ordinal_variable,
     baseline_category, pairwise_scale, pairwise_stats,
-    iteration, schedule, rng
+    iteration, schedule, rng, num_likelihood_evals
   );
 }
 
@@ -1302,6 +1312,10 @@ void run_gibbs_sampler_bgm(
 
   const int total_iter = warmup_schedule.total_warmup + iter;
 
+  // Initialize evaluation counters
+  int num_likelihood_evals = 0;
+  int num_gradient_evals = 0;
+
   bool userInterrupt = false;
   // --- Main Gibbs sampling loop
   for (int iteration = 0; iteration < total_iter; iteration++) {
@@ -1339,7 +1353,8 @@ void run_gibbs_sampler_bgm(
         pairwise_stats,
         hmc_num_leapfrogs, nuts_max_depth, adapt_joint, adapt_main, adapt_pairwise,
         learn_mass_matrix, warmup_schedule,
-        treedepth_samples, divergent_samples, energy_samples, rng
+        treedepth_samples, divergent_samples, energy_samples, rng,
+        num_likelihood_evals, num_gradient_evals
     );
 
     // --- Update edge probabilities under the prior (if edge selection is active)
@@ -1415,6 +1430,8 @@ void run_gibbs_sampler_bgm(
 
   chain_result.main_effect_samples = main_effect_samples;
   chain_result.pairwise_effect_samples = pairwise_effect_samples;
+  chain_result.num_likelihood_evaluations = num_likelihood_evals;
+  chain_result.num_gradient_evaluations = num_gradient_evals;
 
   if (update_method == nuts) {
     chain_result.treedepth_samples = treedepth_samples;

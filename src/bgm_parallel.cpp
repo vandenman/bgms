@@ -347,6 +347,8 @@ Rcpp::List run_bgm_parallel(
 
         chain_i["userInterrupt"] = results[i].userInterrupt;
         chain_i["chain_id"] = results[i].chain_id;
+        chain_i["num_logp_evaluations"] = results[i].num_likelihood_evaluations;
+        chain_i["num_gradient_evaluations"] = results[i].num_gradient_evaluations;
 
         output[i] = chain_i;
     }

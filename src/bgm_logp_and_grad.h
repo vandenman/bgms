@@ -15,7 +15,8 @@ double log_pseudoposterior_main_effects_component (
     const double main_beta,
     const int variable,
     const int category,
-    const int parameter
+    const int parameter,
+    int* num_evals = nullptr
 );
 
 // Log posterior for a single component of interactions
@@ -30,7 +31,8 @@ double log_pseudoposterior_interactions_component (
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
     const int var1,
-    const int var2
+    const int var2,
+    int* num_evals = nullptr
 );
 
 // Full log posterior
@@ -48,7 +50,8 @@ double log_pseudoposterior (
     const double main_beta,
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
+    const arma::mat& residual_matrix,
+    int* num_evals = nullptr
 );
 
 arma::vec gradient_log_pseudoposterior(
@@ -65,7 +68,8 @@ arma::vec gradient_log_pseudoposterior(
     const double main_beta,
     const double pairwise_scale,
     const arma::imat& pairwise_stats,
-    const arma::mat& residual_matrix
+    const arma::mat& residual_matrix,
+    int* num_evals = nullptr
 );
 
 // Pseudolikelihood ratio for a single variable
@@ -96,5 +100,6 @@ double log_pseudolikelihood_ratio_interaction (
     const arma::mat& residual_matrix,
     const arma::uvec& is_ordinal_variable,
     const arma::ivec& baseline_category,
-    const arma::imat& pairwise_stats
+    const arma::imat& pairwise_stats,
+    int* num_evals = nullptr
 );

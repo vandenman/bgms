@@ -713,5 +713,13 @@ bgm = function(
     }
   }
 
+  if ("num_logp_evaluations" %in% names(out[[1]])) {
+    output$num_logp_evaluations <- vapply(out, FUN = `[[`, FUN.VALUE = integer(1L), "num_logp_evaluations")
+
+  }
+  if ("num_gradient_evaluations" %in% names(out[[1]])) {
+    output$num_gradient_evaluations <- vapply(out, FUN = `[[`, FUN.VALUE = integer(1L), "num_gradient_evaluations")
+  }
+
   return(output)
 }
