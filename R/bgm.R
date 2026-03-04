@@ -20,6 +20,7 @@
 #' Key components of the model are described in the sections below.
 #'
 #' @seealso \code{vignette("intro", package = "bgms")} for a worked example.
+#' @family model-fitting
 #'
 #' @section Ordinal Variables:
 #' The function supports two types of ordinal variables:
@@ -160,10 +161,9 @@
 #'
 #' @section Missing Data:
 #'
-#' If \code{na_action = "listwise"}, observations with missing values are
-#' removed.
-#' If \code{na_action = "impute"}, missing values are imputed during Gibbs
-#' sampling.
+#' If \code{na_action = "listwise"}, rows with missing values are removed.
+#' If \code{na_action = "impute"}, missing values are imputed within the
+#' MCMC loop via Gibbs sampling.
 #'
 #' @param x A data frame or matrix with \code{n} rows and \code{p} columns
 #'   containing binary and ordinal responses. Variables are automatically
@@ -296,7 +296,7 @@
 #'
 #' @param interaction_scale,burnin,save,threshold_alpha,threshold_beta
 #'   `r lifecycle::badge("deprecated")`
-#'   Deprecated arguments as of **bgms 0.1.6.0**.
+#'   Deprecated arguments as of \strong{bgms 0.1.6.0}.
 #'   Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.
 #'
 #' @return
@@ -418,7 +418,7 @@ bgm = function(
 ) {
   # Set verbose option for internal functions, restore on exit
 
-  old_verbose <- getOption("bgms.verbose")
+  old_verbose = getOption("bgms.verbose")
   options(bgms.verbose = verbose)
   on.exit(options(bgms.verbose = old_verbose), add = TRUE)
 
@@ -450,46 +450,17 @@ bgm = function(
     if(!hasArg(main_beta)) main_beta = threshold_beta
   }
 
-  # Check update method
-  update_method_input = update_method
-  update_method = match.arg(update_method)
-
-  # Check target acceptance rate
-  if(hasArg(target_accept)) {
-    target_accept = min(target_accept, 1 - sqrt(.Machine$double.eps))
-    target_accept = max(target_accept, 0 + sqrt(.Machine$double.eps))
-  } else {
-    if(update_method == "adaptive-metropolis") {
-      target_accept = 0.44
-    } else if(update_method == "hamiltonian-mc") {
-      target_accept = 0.65
-    } else if(update_method == "nuts") {
-      target_accept = 0.60
-    }
-  }
-
-  # Check data input ------------------------------------------------------------
-  if(!inherits(x, what = "matrix") && !inherits(x, what = "data.frame")) {
-    stop("The input x needs to be a matrix or dataframe.")
-  }
-  if(inherits(x, what = "data.frame")) {
-    x = data.matrix(x)
-  }
-  if(ncol(x) < 2) {
-    stop("The matrix x should have more than one variable (columns).")
-  }
-  if(nrow(x) < 2) {
-    stop("The matrix x should have more than one observation (rows).")
-  }
-
-  # Check model input -----------------------------------------------------------
-  model = check_model(
+  # --- Build spec, sample, build output ----------------------------------------
+  spec = bgm_spec(
     x = x,
+    model_type = "omrf",
     variable_type = variable_type,
-    baseline_category = baseline_category,
+    baseline_category = if(hasArg(baseline_category)) baseline_category else 0L,
+    na_action = na_action,
     pairwise_scale = pairwise_scale,
     main_alpha = main_alpha,
     main_beta = main_beta,
+    standardize = standardize,
     edge_selection = edge_selection,
     edge_prior = edge_prior,
     inclusion_probability = inclusion_probability,
@@ -498,326 +469,24 @@ bgm = function(
     beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
     beta_bernoulli_beta_between = beta_bernoulli_beta_between,
     dirichlet_alpha = dirichlet_alpha,
-    lambda = lambda
-  )
-
-  # check hyperparameters input
-  # If user left them NULL, pass -1 to C++ (means: ignore between prior)
-  if(is.null(beta_bernoulli_alpha_between) && is.null(beta_bernoulli_beta_between)) {
-    beta_bernoulli_alpha_between <- -1.0
-    beta_bernoulli_beta_between <- -1.0
-  } else if(is.null(beta_bernoulli_alpha_between) || is.null(beta_bernoulli_beta_between)) {
-    stop("If you wish to specify different between and within cluster probabilites,
-         provide both beta_bernoulli_alpha_between and beta_bernoulli_beta_between,
-         otherwise leave both NULL.")
-  }
-  # ----------------------------------------------------------------------------
-  # The vector variable_type is now coded as boolean.
-  # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
-  # ----------------------------------------------------------------------------
-  variable_bool = model$variable_bool
-  # ----------------------------------------------------------------------------
-
-  baseline_category = model$baseline_category
-  edge_selection = model$edge_selection
-  edge_prior = model$edge_prior
-  inclusion_probability = model$inclusion_probability
-
-  # Check Gibbs input -----------------------------------------------------------
-  check_positive_integer(iter, "iter")
-  check_non_negative_integer(warmup, "warmup")
-
-  # Warmup warnings for HMC/NUTS (tiered based on edge_selection)
-  if (verbose && update_method %in% c("hmc", "nuts")) {
-    if (edge_selection) {
-      # For edge_selection models: warmup is split 85%/10%/5% for stages 1-3a/3b/3c
-      if (warmup < 50) {
-        warning("warmup = ", warmup, " is very short for edge selection. Consider >= 300.")
-      } else if (warmup < 200) {
-        warning("warmup = ", warmup, ": proposal SD tuning skipped (needs >= 200). Consider >= 300.")
-      } else if (warmup < 300) {
-        warning("warmup = ", warmup, ": limited proposal SD tuning. Consider >= 300.")
-      }
-    } else {
-      # For models without edge selection: standard warmup warnings
-      if (warmup < 20) {
-        warning("warmup = ", warmup, ": no mass matrix estimation (needs >= 20).")
-      } else if (warmup < 150) {
-        warning("warmup = ", warmup, ": using proportional allocation (needs >= 150 for fixed buffers).")
-      }
-    }
-  }
-
-  check_positive_integer(hmc_num_leapfrogs, "hmc_num_leapfrogs")
-  hmc_num_leapfrogs = max(hmc_num_leapfrogs, 1) # Set minimum hmc_num_leapfrogs to 1
-
-  check_positive_integer(nuts_max_depth, "nuts_max_depth")
-  nuts_max_depth = max(nuts_max_depth, 1) # Set minimum nuts_max_depth to 1
-
-  # Check na_action -------------------------------------------------------------
-  na_action_input = na_action
-  na_action = try(match.arg(na_action), silent = TRUE)
-  if(inherits(na_action, what = "try-error")) {
-    stop(paste0(
-      "The na_action argument should equal listwise or impute, not ",
-      na_action_input,
-      "."
-    ))
-  }
-
-  # Check display_progress ------------------------------------------------------
-  progress_type = progress_type_from_display_progress(display_progress)
-
-  # Format the data input -------------------------------------------------------
-  data = reformat_data(
-    x = x,
-    na_action = na_action,
-    variable_bool = variable_bool,
-    baseline_category = baseline_category
-  )
-  x = data$x
-  num_categories = data$num_categories
-  missing_index = data$missing_index
-  na_impute = data$na_impute
-  baseline_category = data$baseline_category
-
-  num_variables = ncol(x)
-  num_interactions = num_variables * (num_variables - 1) / 2
-  num_thresholds = sum(num_categories)
-
-  # Starting value of model matrix ---------------------------------------------
-  indicator = matrix(1,
-    nrow = num_variables,
-    ncol = num_variables
-  )
-
-  # Starting values of interactions and thresholds (posterior mode) -------------
-  interactions = matrix(0, nrow = num_variables, ncol = num_variables)
-  thresholds = matrix(0, nrow = num_variables, ncol = max(num_categories))
-
-  # Precompute the number of observations per category for each variable --------
-  counts_per_category = matrix(0,
-    nrow = max(num_categories) + 1,
-    ncol = num_variables
-  )
-  for(variable in 1:num_variables) {
-    for(category in 0:num_categories[variable]) {
-      counts_per_category[category + 1, variable] = sum(x[, variable] == category)
-    }
-  }
-
-  # Precompute the sufficient statistics for the two Blume-Capel parameters -----
-  blume_capel_stats = matrix(0, nrow = 2, ncol = num_variables)
-  if(any(!variable_bool)) {
-    # Ordinal (variable_bool == TRUE) or Blume-Capel (variable_bool == FALSE)
-    bc_vars = which(!variable_bool)
-    for(i in bc_vars) {
-      blume_capel_stats[1, i] = sum(x[, i] - baseline_category[i])
-      blume_capel_stats[2, i] = sum((x[, i] - baseline_category[i]) ^ 2)
-      x[, i] = x[, i] - baseline_category[i]
-    }
-  }
-  pairwise_stats = t(x) %*% x
-
-  # Index matrix used in the c++ functions  ------------------------------------
-  interaction_index_matrix = matrix(0,
-    nrow = num_variables * (num_variables - 1) / 2,
-    ncol = 3
-  )
-  cntr = 0
-  for(variable1 in 1:(num_variables - 1)) {
-    for(variable2 in (variable1 + 1):num_variables) {
-      cntr = cntr + 1
-      interaction_index_matrix[cntr, 1] = cntr - 1
-      interaction_index_matrix[cntr, 2] = variable1 - 1
-      interaction_index_matrix[cntr, 3] = variable2 - 1
-    }
-  }
-
-  pairwise_effect_indices = matrix(NA, nrow = num_variables, ncol = num_variables)
-  tel = 0
-  for(v1 in seq_len(num_variables - 1)) {
-    for(v2 in seq((v1 + 1), num_variables)) {
-      pairwise_effect_indices[v1, v2] = tel
-      pairwise_effect_indices[v2, v1] = tel
-      tel = tel + 1 # C++ starts at zero
-    }
-  }
-
-  # Compute pairwise scaling factors for standardized priors --------------------
-  pairwise_scaling_factors = matrix(1, nrow = num_variables, ncol = num_variables)
-  if(standardize) {
-    for(v1 in seq_len(num_variables - 1)) {
-      for(v2 in seq((v1 + 1), num_variables)) {
-        if(variable_bool[v1] && variable_bool[v2]) {
-          # Both ordinal: m_i * m_j (where m is max score, 0...m)
-          pairwise_scaling_factors[v1, v2] = num_categories[v1] * num_categories[v2]
-        } else if(!variable_bool[v1] && !variable_bool[v2]) {
-          # Both Blume-Capel: max of endpoint products
-          b1 = baseline_category[v1]
-          b2 = baseline_category[v2]
-          m1 = num_categories[v1]
-          m2 = num_categories[v2]
-          # Endpoints for centered scores: -b and M-b
-          endpoints1 = c(-b1, m1 - b1)
-          endpoints2 = c(-b2, m2 - b2)
-          all_products = abs(outer(endpoints1, endpoints2))
-          pairwise_scaling_factors[v1, v2] = max(all_products)
-        } else {
-          # Mixed: one ordinal, one Blume-Capel
-          if(variable_bool[v1]) {
-            # v1 is ordinal (range 0 to M1), v2 is Blume-Capel (range -b2 to M2-b2)
-            m1 = num_categories[v1]
-            b2 = baseline_category[v2]
-            m2 = num_categories[v2]
-            endpoints1 = c(0, m1)
-            endpoints2 = c(-b2, m2 - b2)
-          } else {
-            # v1 is Blume-Capel, v2 is ordinal
-            b1 = baseline_category[v1]
-            m1 = num_categories[v1]
-            m2 = num_categories[v2]
-            endpoints1 = c(-b1, m1 - b1)
-            endpoints2 = c(0, m2)
-          }
-          all_products = abs(outer(endpoints1, endpoints2))
-          pairwise_scaling_factors[v1, v2] = max(all_products)
-        }
-        pairwise_scaling_factors[v2, v1] = pairwise_scaling_factors[v1, v2]
-      }
-    }
-  }
-
-  # Add variable names to scaling factors matrix
-  varnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(num_variables)) else colnames(x)
-  rownames(pairwise_scaling_factors) = varnames
-  colnames(pairwise_scaling_factors) = varnames
-
-  # Setting the seed
-  if(missing(seed) || is.null(seed)) {
-    # Draw a random seed if none provided
-    seed = sample.int(.Machine$integer.max, 1)
-  }
-
-  if(!is.numeric(seed) || length(seed) != 1 || is.na(seed) || seed < 0) {
-    stop("Argument 'seed' must be a single non-negative integer.")
-  }
-
-  seed <- as.integer(seed)
-
-  out = run_bgm_parallel(
-    observations = x, num_categories = num_categories,
-    pairwise_scale = pairwise_scale, edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-    interaction_index_matrix = interaction_index_matrix, iter = iter,
-    warmup = warmup, counts_per_category = counts_per_category,
-    blume_capel_stats = blume_capel_stats,
-    main_alpha = main_alpha, main_beta = main_beta,
-    na_impute = na_impute, missing_index = missing_index,
-    is_ordinal_variable = variable_bool,
-    baseline_category = baseline_category, edge_selection = edge_selection,
+    lambda = lambda,
     update_method = update_method,
-    pairwise_effect_indices = pairwise_effect_indices,
-    target_accept = target_accept, pairwise_stats = pairwise_stats,
-    hmc_num_leapfrogs = hmc_num_leapfrogs, nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix, num_chains = chains,
-    nThreads = cores, seed = seed, progress_type = progress_type,
-    pairwise_scaling_factors = pairwise_scaling_factors
-  )
-
-  userInterrupt = any(vapply(out, FUN = `[[`, FUN.VALUE = logical(1L), "userInterrupt"))
-  if(userInterrupt) {
-    warning("Stopped sampling after user interrupt, results are likely uninterpretable.")
-    # Try to prepare output, but catch any errors
-    output <- tryCatch(
-      prepare_output_bgm(
-        out = out, x = x, num_categories = num_categories, iter = iter,
-        data_columnnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
-        is_ordinal_variable = variable_bool,
-        warmup = warmup, pairwise_scale = pairwise_scale, standardize = standardize,
-        pairwise_scaling_factors = pairwise_scaling_factors,
-        main_alpha = main_alpha, main_beta = main_beta,
-        na_action = na_action, na_impute = na_impute,
-        edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
-        beta_bernoulli_alpha = beta_bernoulli_alpha, beta_bernoulli_beta = beta_bernoulli_beta,
-        beta_bernoulli_alpha_between = beta_bernoulli_alpha_between, beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-        dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-        variable_type = variable_type,
-        baseline_category = baseline_category,
-        update_method = update_method,
-        target_accept = target_accept,
-        hmc_num_leapfrogs = hmc_num_leapfrogs,
-        nuts_max_depth = nuts_max_depth,
-        learn_mass_matrix = learn_mass_matrix,
-        num_chains = chains
-      ),
-      error = function(e) {
-        list(partial = out, error = conditionMessage(e))
-      },
-      warning = function(w) {
-        # still salvage what we can
-        list(partial = out, warning = conditionMessage(w))
-      }
-    )
-    return(output)
-  }
-
-  # Main output handler in the wrapper function
-  output = prepare_output_bgm(
-    out = out, x = x, num_categories = num_categories, iter = iter,
-    data_columnnames = if(is.null(colnames(x))) paste0("Variable ", seq_len(ncol(x))) else colnames(x),
-    is_ordinal_variable = variable_bool,
-    warmup = warmup, pairwise_scale = pairwise_scale, standardize = standardize,
-    pairwise_scaling_factors = pairwise_scaling_factors,
-    main_alpha = main_alpha, main_beta = main_beta,
-    na_action = na_action, na_impute = na_impute,
-    edge_selection = edge_selection, edge_prior = edge_prior, inclusion_probability = inclusion_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha, lambda = lambda,
-    variable_type = variable_type,
-    baseline_category = baseline_category,
-    update_method = update_method,
-    target_accept = target_accept,
+    target_accept = if(hasArg(target_accept)) target_accept else NULL,
+    iter = iter,
+    warmup = warmup,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
     nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
-    num_chains = chains
+    chains = chains,
+    cores = cores,
+    seed = seed,
+    display_progress = display_progress,
+    verbose = verbose
   )
 
-  if(update_method == "nuts") {
-    nuts_diag = summarize_nuts_diagnostics(out, nuts_max_depth = nuts_max_depth)
-    output$nuts_diag = nuts_diag
-  }
+  raw = run_sampler(spec)
+  output = build_output(spec, raw)
 
-  # -------------------------------------------------------------------
-  # TODO: REMOVE after easybgm >= 0.2.2 is on CRAN
-  # Compatibility shim for easybgm <= 0.2.1
-  # -------------------------------------------------------------------
-  if("easybgm" %in% loadedNamespaces()) {
-    ebgm_version <- utils::packageVersion("easybgm")
-    if(ebgm_version <= "0.2.1") {
-      warning(
-        "bgms is running in compatibility mode for easybgm (<= 0.2.1). ",
-        "This will be removed once easybgm >= 0.2.2 is on CRAN."
-      )
-
-      # Add legacy variables to output
-      output$arguments$save <- TRUE
-      if(edge_selection) {
-        output$indicator <- extract_indicators(output)
-      }
-      output$interactions <- extract_pairwise_interactions(output)
-      output$thresholds <- extract_category_thresholds(output)
-    }
-  }
-
+  output$.bgm_spec = spec
   return(output)
 }

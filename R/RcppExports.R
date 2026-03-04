@@ -5,8 +5,20 @@ run_bgmCompare_parallel <- function(observations, num_groups, counts_per_categor
     .Call(`_bgms_run_bgmCompare_parallel`, observations, num_groups, counts_per_category, blume_capel_stats, pairwise_stats, num_categories, main_alpha, main_beta, pairwise_scale, pairwise_scaling_factors, difference_scale, difference_selection_alpha, difference_selection_beta, difference_prior, iter, warmup, na_impute, missing_data_indices, is_ordinal_variable, baseline_category, difference_selection, main_difference_selection, main_effect_indices, pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix, projection, group_membership, group_indices, interaction_index_matrix, inclusion_probability, num_chains, nThreads, seed, update_method, hmc_num_leapfrogs, progress_type)
 }
 
-run_bgm_parallel <- function(observations, num_categories, pairwise_scale, edge_prior, inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between, beta_bernoulli_beta_between, dirichlet_alpha, lambda, interaction_index_matrix, iter, warmup, counts_per_category, blume_capel_stats, main_alpha, main_beta, na_impute, missing_index, is_ordinal_variable, baseline_category, edge_selection, update_method, pairwise_effect_indices, target_accept, pairwise_stats, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix, num_chains, nThreads, seed, progress_type, pairwise_scaling_factors) {
-    .Call(`_bgms_run_bgm_parallel`, observations, num_categories, pairwise_scale, edge_prior, inclusion_probability, beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between, beta_bernoulli_beta_between, dirichlet_alpha, lambda, interaction_index_matrix, iter, warmup, counts_per_category, blume_capel_stats, main_alpha, main_beta, na_impute, missing_index, is_ordinal_variable, baseline_category, edge_selection, update_method, pairwise_effect_indices, target_accept, pairwise_stats, hmc_num_leapfrogs, nuts_max_depth, learn_mass_matrix, num_chains, nThreads, seed, progress_type, pairwise_scaling_factors)
+get_explog_switch <- function() {
+    .Call(`_bgms_get_explog_switch`)
+}
+
+rcpp_ieee754_exp <- function(x) {
+    .Call(`_bgms_rcpp_ieee754_exp`, x)
+}
+
+rcpp_ieee754_log <- function(x) {
+    .Call(`_bgms_rcpp_ieee754_log`, x)
+}
+
+compute_conditional_ggm <- function(observations, predict_vars, precision) {
+    .Call(`_bgms_compute_conditional_ggm`, observations, predict_vars, precision)
 }
 
 compute_conditional_probs <- function(observations, predict_vars, pairwise, main, num_categories, variable_type, baseline_category) {
@@ -21,8 +33,24 @@ sample_bcomrf_gibbs <- function(num_states, num_variables, num_categories, pairw
     .Call(`_bgms_sample_bcomrf_gibbs`, num_states, num_variables, num_categories, pairwise, main, variable_type_r, baseline_category, iter, seed)
 }
 
+sample_ggm_direct <- function(num_states, precision, means, seed) {
+    .Call(`_bgms_sample_ggm_direct`, num_states, precision, means, seed)
+}
+
 run_simulation_parallel <- function(pairwise_samples, main_samples, draw_indices, num_states, num_variables, num_categories, variable_type_r, baseline_category, iter, nThreads, seed, progress_type) {
     .Call(`_bgms_run_simulation_parallel`, pairwise_samples, main_samples, draw_indices, num_states, num_variables, num_categories, variable_type_r, baseline_category, iter, nThreads, seed, progress_type)
+}
+
+run_ggm_simulation_parallel <- function(pairwise_samples, main_samples, draw_indices, num_states, num_variables, means, nThreads, seed, progress_type) {
+    .Call(`_bgms_run_ggm_simulation_parallel`, pairwise_samples, main_samples, draw_indices, num_states, num_variables, means, nThreads, seed, progress_type)
+}
+
+sample_ggm <- function(inputFromR, prior_inclusion_prob, initial_edge_indicators, no_iter, no_warmup, no_chains, edge_selection, seed, no_threads, progress_type, edge_prior = "Bernoulli", beta_bernoulli_alpha = 1.0, beta_bernoulli_beta = 1.0, beta_bernoulli_alpha_between = 1.0, beta_bernoulli_beta_between = 1.0, dirichlet_alpha = 1.0, lambda = 1.0, na_impute = FALSE, missing_index_nullable = NULL) {
+    .Call(`_bgms_sample_ggm`, inputFromR, prior_inclusion_prob, initial_edge_indicators, no_iter, no_warmup, no_chains, edge_selection, seed, no_threads, progress_type, edge_prior, beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between, beta_bernoulli_beta_between, dirichlet_alpha, lambda, na_impute, missing_index_nullable)
+}
+
+sample_omrf <- function(inputFromR, prior_inclusion_prob, initial_edge_indicators, no_iter, no_warmup, no_chains, edge_selection, sampler_type, seed, no_threads, progress_type, edge_prior = "Bernoulli", na_impute = FALSE, missing_index_nullable = NULL, beta_bernoulli_alpha = 1.0, beta_bernoulli_beta = 1.0, beta_bernoulli_alpha_between = 1.0, beta_bernoulli_beta_between = 1.0, dirichlet_alpha = 1.0, lambda = 1.0, target_acceptance = 0.8, max_tree_depth = 10L, num_leapfrogs = 10L, pairwise_scaling_factors_nullable = NULL) {
+    .Call(`_bgms_sample_omrf`, inputFromR, prior_inclusion_prob, initial_edge_indicators, no_iter, no_warmup, no_chains, edge_selection, sampler_type, seed, no_threads, progress_type, edge_prior, na_impute, missing_index_nullable, beta_bernoulli_alpha, beta_bernoulli_beta, beta_bernoulli_alpha_between, beta_bernoulli_beta_between, dirichlet_alpha, lambda, target_acceptance, max_tree_depth, num_leapfrogs, pairwise_scaling_factors_nullable)
 }
 
 compute_Vn_mfm_sbm <- function(num_variables, dirichlet_alpha, t_max, lambda) {

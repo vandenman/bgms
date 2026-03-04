@@ -69,19 +69,26 @@ given the observed values of all other variables.
 \examples{
 \donttest{
 # Fit a comparison model
-x <- Boredom[Boredom$language == "fr", 2:6]
-y <- Boredom[Boredom$language != "fr", 2:6]
-fit <- bgmCompare(x, y, chains = 2)
+x = Boredom[Boredom$language == "fr", 2:6]
+y = Boredom[Boredom$language != "fr", 2:6]
+fit = bgmCompare(x, y, chains = 2)
 
 # Predict conditional probabilities using group 1 parameters
-probs_g1 <- predict(fit, newdata = x[1:10, ], group = 1)
+probs_g1 = predict(fit, newdata = x[1:10, ], group = 1)
 
 # Predict responses using group 2 parameters
-pred_g2 <- predict(fit, newdata = y[1:10, ], group = 2, type = "response")
+pred_g2 = predict(fit, newdata = y[1:10, ], group = 2, type = "response")
 }
 
 }
 \seealso{
 \code{\link{predict.bgms}} for predicting from single-group models,
   \code{\link{simulate.bgmCompare}} for simulating from group-comparison models.
+
+Other prediction: 
+\code{\link{predict.bgms}()},
+\code{\link{simulate.bgmCompare}()},
+\code{\link{simulate.bgms}()},
+\code{\link{simulate_mrf}()}
 }
+\concept{prediction}

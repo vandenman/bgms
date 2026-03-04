@@ -172,7 +172,7 @@ Defaults to \code{getOption("bgms.verbose", TRUE)}. Set
 \code{options(bgms.verbose = FALSE)} to suppress messages globally.}
 
 \item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{`r lifecycle::badge("deprecated")`
-Deprecated arguments as of **bgms 0.1.6.0**.
+Deprecated arguments as of \strong{bgms 0.1.6.0}.
 Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.}
 }
 \value{
@@ -409,10 +409,9 @@ burn–in using Robbins–Monro updates, without staged fast/slow intervals.
 \section{Missing Data}{
 
 
-If \code{na_action = "listwise"}, observations with missing values are
-removed.
-If \code{na_action = "impute"}, missing values are imputed during Gibbs
-sampling.
+If \code{na_action = "listwise"}, rows with missing values are removed.
+If \code{na_action = "impute"}, missing values are imputed within the
+MCMC loop via Gibbs sampling.
 }
 
 \examples{
@@ -433,4 +432,8 @@ summary(fit)$pairwise
 }
 \seealso{
 \code{vignette("intro", package = "bgms")} for a worked example.
+
+Other model-fitting: 
+\code{\link{bgmCompare}()}
 }
+\concept{model-fitting}

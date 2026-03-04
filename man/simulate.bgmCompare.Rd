@@ -55,19 +55,26 @@ parameters to generate new data via Gibbs sampling.
 \examples{
 \donttest{
 # Fit a comparison model
-x <- Boredom[Boredom$language == "fr", 2:6]
-y <- Boredom[Boredom$language != "fr", 2:6]
-fit <- bgmCompare(x, y, chains = 2)
+x = Boredom[Boredom$language == "fr", 2:6]
+y = Boredom[Boredom$language != "fr", 2:6]
+fit = bgmCompare(x, y, chains = 2)
 
 # Simulate 100 observations from group 1
-new_data_g1 <- simulate(fit, nsim = 100, group = 1)
+new_data_g1 = simulate(fit, nsim = 100, group = 1)
 
 # Simulate 100 observations from group 2
-new_data_g2 <- simulate(fit, nsim = 100, group = 2)
+new_data_g2 = simulate(fit, nsim = 100, group = 2)
 }
 
 }
 \seealso{
 \code{\link{simulate.bgms}} for simulating from single-group models,
   \code{\link{predict.bgmCompare}} for computing conditional probabilities.
+
+Other prediction: 
+\code{\link{predict.bgmCompare}()},
+\code{\link{predict.bgms}()},
+\code{\link{simulate.bgms}()},
+\code{\link{simulate_mrf}()}
 }
+\concept{prediction}
