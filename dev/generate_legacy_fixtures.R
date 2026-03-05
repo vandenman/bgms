@@ -36,7 +36,9 @@ version_snapshots <- list(
   "0.1.4.1" = "2024-11-20",   # Released 2024-11-12
   "0.1.4.2" = "2024-12-15",   # Released 2024-12-05
   "0.1.6.0" = "source",       # Install from source (no binary available)
-  "0.1.6.1" = "source"        # Install from source (no binary available)
+  "0.1.6.1" = "source",       # Install from source (no binary available)
+  "0.1.6.2" = "source",       # Released 2026-01-20
+  "0.1.6.3" = "current"       # Current CRAN version (2026-02-14)
 )
 
 # Helper function to install and run in isolated environment
@@ -47,7 +49,16 @@ create_legacy_fit <- function(version, snapshot_date, output_name) {
   dir.create(tmp_lib)
   
   tryCatch({
-    if (snapshot_date == "source") {
+    if (snapshot_date == "current") {
+      # Install from current CRAN
+      cat("Installing bgms", version, "from current CRAN\n")
+      install.packages(
+        "bgms",
+        repos = "https://cloud.r-project.org",
+        lib = tmp_lib,
+        quiet = TRUE
+      )
+    } else if (snapshot_date == "source") {
       # Install from CRAN archive source
       url <- paste0("https://cran.r-project.org/src/contrib/Archive/bgms/bgms_", version, ".tar.gz")
       cat("Installing bgms", version, "from source:", url, "\n")
@@ -157,7 +168,9 @@ bgmcompare_versions <- list(
   "0.1.4.1" = "2024-11-20",
   "0.1.4.2" = "2024-12-15",
   "0.1.6.0" = "source",
-  "0.1.6.1" = "source"
+  "0.1.6.1" = "source",
+  "0.1.6.2" = "source",
+  "0.1.6.3" = "current"
 )
 
 # Helper function to create bgmCompare legacy fit
@@ -168,7 +181,16 @@ create_legacy_bgmcompare_fit <- function(version, snapshot_date, output_name) {
   dir.create(tmp_lib)
   
   tryCatch({
-    if (snapshot_date == "source") {
+    if (snapshot_date == "current") {
+      # Install from current CRAN
+      cat("Installing bgms", version, "from current CRAN\n")
+      install.packages(
+        "bgms",
+        repos = "https://cloud.r-project.org",
+        lib = tmp_lib,
+        quiet = TRUE
+      )
+    } else if (snapshot_date == "source") {
       # Install from CRAN archive source
       url <- paste0("https://cran.r-project.org/src/contrib/Archive/bgms/bgms_", version, ".tar.gz")
       cat("Installing bgms", version, "from source:", url, "\n")
