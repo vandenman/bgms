@@ -123,14 +123,15 @@ run_simrec_test <- function(fit, n_sim = 350, mcmc_args = NULL,
 run_simrec_test_ggm <- function(fit, n_sim = 500, mcmc_args = NULL,
                                 min_correlation = 0.80, seed = 12345) {
 
-  if (is.null(mcmc_args)) {
+  if(is.null(mcmc_args)) {
     mcmc_args <- list(iter = 1000, warmup = 1000, chains = 1,
                       display_progress = "none")
   }
 
   # Extract estimates from original fit
+  # For GGM, pairwise contains full precision matrix (including diagonal)
   original_pairwise <- colMeans(extract_pairwise_interactions(fit))
-  original_main <- as.numeric(fit$posterior_mean_main)
+  original_main <- diag(fit$posterior_mean_pairwise)
 
   # Simulate data from the fitted model
   set.seed(seed)
@@ -148,14 +149,14 @@ run_simrec_test_ggm <- function(fit, n_sim = 500, mcmc_args = NULL,
 
   # Extract estimates from refit
   refit_pairwise <- colMeans(extract_pairwise_interactions(refit))
-  refit_main <- as.numeric(refit$posterior_mean_main)
+  refit_main <- diag(refit$posterior_mean_pairwise)
 
   # Calculate correlations
   cor_pairwise <- cor(original_pairwise, refit_pairwise)
   cor_main <- cor(original_main, refit_main)
 
-  if (is.na(cor_pairwise)) cor_pairwise <- 0
-  if (is.na(cor_main)) cor_main <- 0
+  if(is.na(cor_pairwise)) cor_pairwise <- 0
+  if(is.na(cor_main)) cor_main <- 0
 
   list(
     cor_pairwise = cor_pairwise,
