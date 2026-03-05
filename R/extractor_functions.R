@@ -1,29 +1,30 @@
 # ==============================================================================
-# Extractor Functions - S3 Generics
-# ==============================================================================
-# These are internal S3 generics. See the method documentation for details:
-# - extract_arguments.bgms, extract_arguments.bgmCompare
-# - extract_indicators.bgms, extract_indicators.bgmCompare, etc.
+# Extractor Functions - S3 Generics and Methods
 # ==============================================================================
 
-# S3 generic for extract_arguments
+#' Extract Model Arguments
+#'
+#' @description
+#' Retrieves the arguments used when fitting a model with [bgm()] or
+#' [bgmCompare()].
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return A named list containing all arguments passed to the fitting
+#'   function, including data dimensions, prior settings, and MCMC
+#'   configuration.
+#'
+#' @seealso [bgm()], [bgmCompare()], [summary.bgms()], [summary.bgmCompare()]
+#' @family extractors
+#' @export
 extract_arguments = function(bgms_object) {
   UseMethod("extract_arguments")
 }
 
-#' Extract Model Arguments from bgms Objects
-#'
-#' Retrieves the arguments used when fitting a model with [bgm()].
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A named list containing all arguments passed to [bgm()], including
-#'   data dimensions, prior settings, and MCMC configuration.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_arguments
 #' @exportS3Method
+#' @noRd
 extract_arguments.bgms = function(bgms_object) {
   if(is.null(bgms_object$arguments)) {
     stop("Fit object predates bgms version 0.1.3. Upgrade the model output.")
@@ -31,19 +32,9 @@ extract_arguments.bgms = function(bgms_object) {
   return(bgms_object$arguments)
 }
 
-#' Extract Model Arguments from bgmCompare Objects
-#'
-#' Retrieves the arguments used when fitting a model with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A named list containing all arguments passed to [bgmCompare()],
-#'   including data dimensions, prior settings, and MCMC configuration.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_arguments
 #' @exportS3Method
+#' @noRd
 extract_arguments.bgmCompare = function(bgms_object) {
   if(is.null(bgms_object$arguments)) {
     stop("Fit object predates bgms version 0.1.3. Upgrade the model output.")
@@ -51,25 +42,35 @@ extract_arguments.bgmCompare = function(bgms_object) {
   return(bgms_object$arguments)
 }
 
-# S3 generic for extract_indicators
+#' Extract Indicator Samples
+#'
+#' @description
+#' Retrieves posterior samples of inclusion indicators from a model fitted
+#' with [bgm()] (edge inclusion indicators) or [bgmCompare()] (difference
+#' indicators).
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return A matrix with one row per post-warmup iteration and one column per
+#'   indicator, containing binary (0/1) samples.
+#'   \describe{
+#'     \item{bgms}{One column per edge. Requires `edge_selection = TRUE`.}
+#'     \item{bgmCompare}{Columns for main-effect and pairwise difference
+#'       indicators. Requires `difference_selection = TRUE`.}
+#'   }
+#'
+#' @seealso [bgm()], [bgmCompare()],
+#'   [extract_posterior_inclusion_probabilities()]
+#' @family extractors
+#' @export
 extract_indicators = function(bgms_object) {
   UseMethod("extract_indicators")
 }
 
-#' Extract Edge Indicator Samples from bgms Objects
-#'
-#' Retrieves posterior samples of edge inclusion indicators from a
-#' model fitted with [bgm()] using edge selection.
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A matrix with one row per post-warmup iteration and one column
-#'   per edge, containing binary (0/1) indicator samples.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_indicators
 #' @exportS3Method
+#' @noRd
 extract_indicators.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -103,20 +104,9 @@ extract_indicators.bgms = function(bgms_object) {
   )
 }
 
-#' Extract Difference Indicator Samples from bgmCompare Objects
-#'
-#' Retrieves posterior samples of difference indicators from a model
-#' fitted with [bgmCompare()] using difference selection.
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A matrix with one row per post-warmup iteration, containing
-#'   binary indicator samples for main-effect and pairwise differences.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_indicators
 #' @exportS3Method
+#' @noRd
 extract_indicators.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -146,25 +136,35 @@ extract_indicators.bgmCompare = function(bgms_object) {
   stop("No indicator samples found in fit object.")
 }
 
-# S3 generic for extract_posterior_inclusion_probabilities
+#' Extract Posterior Inclusion Probabilities
+#'
+#' @description
+#' Computes posterior inclusion probabilities from a model fitted with
+#' [bgm()] (edge inclusion) or [bgmCompare()] (difference inclusion).
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return A symmetric p x p matrix of posterior inclusion probabilities,
+#'   with variable names as row and column names.
+#'   \describe{
+#'     \item{bgms}{Off-diagonal entries are edge inclusion probabilities.
+#'       Requires `edge_selection = TRUE`.}
+#'     \item{bgmCompare}{Diagonal entries are main-effect inclusion
+#'       probabilities; off-diagonal entries are pairwise difference
+#'       inclusion probabilities. Requires `difference_selection = TRUE`.}
+#'   }
+#'
+#' @seealso [bgm()], [bgmCompare()], [extract_indicators()]
+#' @family extractors
+#' @export
 extract_posterior_inclusion_probabilities = function(bgms_object) {
   UseMethod("extract_posterior_inclusion_probabilities")
 }
 
-#' Extract Posterior Inclusion Probabilities from bgms Objects
-#'
-#' Computes the posterior probability of edge inclusion from a model
-#' fitted with [bgm()] using edge selection.
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A symmetric p x p matrix of posterior inclusion
-#'   probabilities, with variable names as row and column names.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_posterior_inclusion_probabilities
 #' @exportS3Method
+#' @noRd
 extract_posterior_inclusion_probabilities.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -206,25 +206,30 @@ extract_posterior_inclusion_probabilities.bgms = function(bgms_object) {
 }
 
 
-# S3 generic for extract_sbm
+#' Extract Stochastic Block Model Summaries
+#'
+#' @description
+#' Retrieves posterior summaries from a model fitted with [bgm()] using
+#' the Stochastic Block prior on edge inclusion.
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()]).
+#'
+#' @return A list with elements `posterior_num_blocks`,
+#'   `posterior_mean_allocations`, `posterior_mode_allocations`, and
+#'   `posterior_mean_coclustering_matrix`. Requires `edge_selection = TRUE`
+#'   and `edge_prior = "Stochastic-Block"`.
+#'
+#' @seealso [bgm()], [extract_indicators()],
+#'   [extract_posterior_inclusion_probabilities()]
+#' @family extractors
+#' @export
 extract_sbm = function(bgms_object) {
   UseMethod("extract_sbm")
 }
 
-#' Extract Stochastic Block Model Summaries from bgms Objects
-#'
-#' Retrieves posterior summaries from a model fitted with [bgm()] using
-#' the Stochastic Block prior on edge inclusion.
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A list with `posterior_num_blocks`, `posterior_mean_allocations`,
-#'   `posterior_mode_allocations`, and `posterior_mean_coclustering_matrix`.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_sbm
 #' @exportS3Method
+#' @noRd
 extract_sbm.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -247,21 +252,9 @@ extract_sbm.bgms = function(bgms_object) {
 }
 
 
-#' Extract Posterior Inclusion Probabilities from bgmCompare Objects
-#'
-#' Computes the posterior probability of difference inclusion from a
-#' model fitted with [bgmCompare()] using difference selection.
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A symmetric p x p matrix where diagonal entries
-#'   are main-effect inclusion probabilities and off-diagonal entries are
-#'   pairwise difference inclusion probabilities.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_posterior_inclusion_probabilities
 #' @exportS3Method
+#' @noRd
 extract_posterior_inclusion_probabilities.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -336,25 +329,36 @@ extract_posterior_inclusion_probabilities.bgmCompare = function(bgms_object) {
   stop("No indicator samples found in fit object.")
 }
 
-# S3 generic for extract_indicator_priors
+#' Extract Indicator Prior Structure
+#'
+#' @description
+#' Retrieves the prior specification used for inclusion indicators in a
+#' model fitted with [bgm()] (edge indicators) or [bgmCompare()]
+#' (difference indicators).
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return A named list describing the prior structure, including the prior
+#'   type and any hyperparameters.
+#'   \describe{
+#'     \item{bgms}{Requires `edge_selection = TRUE`. Returns a list with the
+#'       prior type (`"Bernoulli"`, `"Beta-Bernoulli"`, or
+#'       `"Stochastic-Block"`) and associated hyperparameters.}
+#'     \item{bgmCompare}{Requires `difference_selection = TRUE`. Returns the
+#'       difference prior specification.}
+#'   }
+#'
+#' @seealso [bgm()], [bgmCompare()], [extract_indicators()]
+#' @family extractors
+#' @export
 extract_indicator_priors = function(bgms_object) {
   UseMethod("extract_indicator_priors")
 }
 
-#' Extract Indicator Prior Structure from bgms Objects
-#'
-#' Retrieves the prior specification used for edge indicators in a
-#' model fitted with [bgm()].
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A named list describing the prior structure, including the prior type
-#'   and any hyperparameters.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_indicator_priors
 #' @exportS3Method
+#' @noRd
 extract_indicator_priors.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
   if(!isTRUE(arguments$edge_selection)) stop("No edge selection performed.")
@@ -372,20 +376,9 @@ extract_indicator_priors.bgms = function(bgms_object) {
 }
 
 
-#' Extract Indicator Prior Structure from bgmCompare Objects
-#'
-#' Retrieves the prior specification used for difference indicators in a
-#' model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A named list describing the prior structure, including the prior type
-#'   and any hyperparameters.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_indicator_priors
 #' @exportS3Method
+#' @noRd
 extract_indicator_priors.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -397,25 +390,33 @@ extract_indicator_priors.bgmCompare = function(bgms_object) {
 }
 
 
-# S3 generic for extract_pairwise_interactions
+#' Extract Pairwise Interaction Samples
+#'
+#' @description
+#' Retrieves posterior samples of pairwise interaction parameters from a
+#' model fitted with [bgm()] or [bgmCompare()].
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return A matrix with one row per post-warmup iteration and one column per
+#'   edge, containing posterior samples of interaction strengths.
+#'   \describe{
+#'     \item{bgms}{Columns correspond to all unique variable pairs.}
+#'     \item{bgmCompare}{Columns correspond to the baseline pairwise
+#'       interaction parameters.}
+#'   }
+#'
+#' @seealso [bgm()], [bgmCompare()], [extract_category_thresholds()]
+#' @family extractors
+#' @export
 extract_pairwise_interactions = function(bgms_object) {
   UseMethod("extract_pairwise_interactions")
 }
 
-#' Extract Pairwise Interaction Samples from bgms Objects
-#'
-#' Retrieves posterior samples of pairwise interaction parameters from
-#' a model fitted with [bgm()].
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A matrix with one row per post-warmup iteration and one column per
-#'   edge, containing posterior samples of interaction strengths.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_pairwise_interactions
 #' @exportS3Method
+#' @noRd
 extract_pairwise_interactions.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
   # Handle legacy field name (no_variables → num_variables in 0.1.6.0)
@@ -460,20 +461,9 @@ extract_pairwise_interactions.bgms = function(bgms_object) {
 }
 
 
-#' Extract Pairwise Interaction Samples from bgmCompare Objects
-#'
-#' Retrieves posterior samples of baseline pairwise interaction
-#' parameters from a model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A matrix with one row per post-warmup iteration and one column per
-#'   edge, containing posterior samples of baseline interaction strengths.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_pairwise_interactions
 #' @exportS3Method
+#' @noRd
 extract_pairwise_interactions.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -502,25 +492,33 @@ extract_pairwise_interactions.bgmCompare = function(bgms_object) {
   stop("No pairwise interaction samples found in fit object.")
 }
 
-# S3 generic for extract_category_thresholds
+#' Extract Category Threshold Estimates
+#'
+#' @description
+#' Retrieves category threshold parameters from a model fitted with
+#' [bgm()] or [bgmCompare()].
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
+#'
+#' @return
+#'   \describe{
+#'     \item{bgms}{A matrix with one row per variable and one column per
+#'       category threshold, containing posterior means.}
+#'     \item{bgmCompare}{A matrix with one row per post-warmup iteration,
+#'       containing posterior samples of baseline threshold parameters.}
+#'   }
+#'
+#' @seealso [bgm()], [bgmCompare()], [extract_pairwise_interactions()]
+#' @family extractors
+#' @export
 extract_category_thresholds = function(bgms_object) {
   UseMethod("extract_category_thresholds")
 }
 
-#' Extract Category Threshold Estimates from bgms Objects
-#'
-#' Retrieves posterior mean category threshold parameters from a model
-#' fitted with [bgm()].
-#'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
-#'
-#' @return A matrix with one row per variable and one column per category
-#'   threshold, containing posterior means.
-#'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
-#' @family extractors
-#'
+#' @inheritParams extract_category_thresholds
 #' @exportS3Method
+#' @noRd
 extract_category_thresholds.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
   var_names = arguments$data_columnnames
@@ -572,20 +570,9 @@ extract_category_thresholds.bgms = function(bgms_object) {
   )
 }
 
-#' Extract Category Threshold Samples from bgmCompare Objects
-#'
-#' Retrieves posterior samples of baseline main-effect (threshold)
-#' parameters from a model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A matrix with one row per post-warmup iteration, containing
-#'   posterior samples of baseline threshold parameters.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_category_thresholds
 #' @exportS3Method
+#' @noRd
 extract_category_thresholds.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -624,25 +611,29 @@ extract_category_thresholds.bgmCompare = function(bgms_object) {
   stop("No category threshold samples found in fit object.")
 }
 
-# S3 generic for extract_group_params
+#' Extract Group-Specific Parameters
+#'
+#' @description
+#' Computes group-specific parameter estimates by combining baseline
+#' parameters and group differences from a model fitted with [bgmCompare()].
+#'
+#' @param bgms_object A fitted model object of class `bgmCompare`
+#'   (from [bgmCompare()]).
+#'
+#' @return A list with elements `main_effects_groups` (main effects per
+#'   group) and `pairwise_effects_groups` (pairwise effects per group).
+#'
+#' @seealso [bgmCompare()], [extract_pairwise_interactions()],
+#'   [extract_category_thresholds()]
+#' @family extractors
+#' @export
 extract_group_params = function(bgms_object) {
   UseMethod("extract_group_params")
 }
 
-#' Extract Group-Specific Parameters from bgmCompare Objects
-#'
-#' Computes group-specific parameter estimates by combining baseline
-#' parameters and group differences from a model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A list with `main_effects_groups` (main effects per group) and
-#'   `pairwise_effects_groups` (pairwise effects per group).
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_group_params
 #' @exportS3Method
+#' @noRd
 extract_group_params.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
@@ -865,25 +856,28 @@ extract_pairwise_thresholds = function(bgms_object) {
 # extract_rhat() - R-hat Convergence Diagnostics
 # ------------------------------------------------------------------------------
 
-# S3 generic for extract_rhat
-extract_rhat = function(bgms_object) {
-  UseMethod("extract_rhat")
-}
-
-#' Extract R-hat Diagnostics from bgms Objects
+#' Extract R-hat Convergence Diagnostics
 #'
+#' @description
 #' Retrieves R-hat convergence diagnostics for all parameters from a
-#' model fitted with [bgm()].
+#' model fitted with [bgm()] or [bgmCompare()].
 #'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
 #'
 #' @return A named list with R-hat values for each parameter type present in
 #'   the model (e.g., `main`, `pairwise`, `indicator`).
 #'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
+#' @seealso [bgm()], [bgmCompare()], [extract_ess()]
 #' @family extractors
-#'
+#' @export
+extract_rhat = function(bgms_object) {
+  UseMethod("extract_rhat")
+}
+
+#' @inheritParams extract_rhat
 #' @exportS3Method
+#' @noRd
 extract_rhat.bgms = function(bgms_object) {
   result = list()
 
@@ -912,20 +906,9 @@ extract_rhat.bgms = function(bgms_object) {
   return(result)
 }
 
-#' Extract R-hat Diagnostics from bgmCompare Objects
-#'
-#' Retrieves R-hat convergence diagnostics for all parameters from a
-#' model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A named list with R-hat values for each parameter type present in
-#'   the model.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_rhat
 #' @exportS3Method
+#' @noRd
 extract_rhat.bgmCompare = function(bgms_object) {
   result = list()
 
@@ -971,25 +954,28 @@ extract_rhat.bgmCompare = function(bgms_object) {
 # extract_ess() - Effective Sample Size
 # ------------------------------------------------------------------------------
 
-# S3 generic for extract_ess
-extract_ess = function(bgms_object) {
-  UseMethod("extract_ess")
-}
-
-#' Extract Effective Sample Size from bgms Objects
+#' Extract Effective Sample Size
 #'
+#' @description
 #' Retrieves effective sample size estimates for all parameters from a
-#' model fitted with [bgm()].
+#' model fitted with [bgm()] or [bgmCompare()].
 #'
-#' @param bgms_object An object of class `bgms` returned by [bgm()].
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
+#'   or `bgmCompare` (from [bgmCompare()]).
 #'
 #' @return A named list with ESS values for each parameter type present in
 #'   the model (e.g., `main`, `pairwise`, `indicator`).
 #'
-#' @seealso [bgm()], [summary.bgms()], [coef.bgms()]
+#' @seealso [bgm()], [bgmCompare()], [extract_rhat()]
 #' @family extractors
-#'
+#' @export
+extract_ess = function(bgms_object) {
+  UseMethod("extract_ess")
+}
+
+#' @inheritParams extract_ess
 #' @exportS3Method
+#' @noRd
 extract_ess.bgms = function(bgms_object) {
   result = list()
 
@@ -1018,20 +1004,9 @@ extract_ess.bgms = function(bgms_object) {
   return(result)
 }
 
-#' Extract Effective Sample Size from bgmCompare Objects
-#'
-#' Retrieves effective sample size estimates for all parameters from a
-#' model fitted with [bgmCompare()].
-#'
-#' @param bgms_object An object of class `bgmCompare` returned by [bgmCompare()].
-#'
-#' @return A named list with ESS values for each parameter type present in
-#'   the model.
-#'
-#' @seealso [bgmCompare()], [summary.bgmCompare()], [coef.bgmCompare()]
-#' @family extractors
-#'
+#' @inheritParams extract_ess
 #' @exportS3Method
+#' @noRd
 extract_ess.bgmCompare = function(bgms_object) {
   result = list()
 
