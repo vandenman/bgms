@@ -1402,6 +1402,12 @@ void OMRFModel::impute_missing() {
     // Recompute pairwise sufficient statistics
     arma::mat ps = observations_double_.t() * observations_double_;
     pairwise_stats_ = arma::conv_to<arma::imat>::from(ps);
+
+    // Update cached transpose so gradients use current imputed values
+    observations_double_t_ = observations_double_.t();
+
+    // Sufficient statistics changed; gradient cache must be rebuilt
+    invalidate_gradient_cache();
 }
 
 
