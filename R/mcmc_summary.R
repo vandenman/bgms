@@ -134,44 +134,17 @@ summarize_manual = function(fit, component = c("main_samples", "pairwise_samples
 summarize_indicator = function(fit, component = c("indicator_samples"), param_names = NULL, array3d = NULL) {
   component = match.arg(component) # Add options later
   if(is.null(array3d)) array3d = combine_chains(fit, component)
-
   nparam = dim(array3d)[3]
-  nchains = dim(array3d)[2]
-  niter = dim(array3d)[1]
 
-  result = matrix(NA, nparam, 9)
-  colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
-
-  # Batch Rhat via C++
+  # Batch indicator ESS + transition counts via C++
+  ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  for(j in seq_len(nparam)) {
-    draws = array3d[, , j]
-    vec = as.vector(draws)
-    n_total = length(vec)
-    g_next = vec[-1]
-    g_curr = vec[-n_total]
+  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE], Rhat = batch_rhat)
+  colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
-    p_hat = mean(vec)
-    sd = sqrt(p_hat * (1 - p_hat))
-    n00 = sum(g_curr == 0 & g_next == 0)
-    n01 = sum(g_curr == 0 & g_next == 1)
-    n10 = sum(g_curr == 1 & g_next == 0)
-    n11 = sum(g_curr == 1 & g_next == 1)
-
-    if(n01 + n10 == 0) {
-      n_eff = mcse = R = NA_real_
-    } else {
-      a = n01 / (n00 + n01)
-      b = n10 / (n10 + n11)
-      tau_int = (2 - (a + b)) / (a + b)
-      n_eff = n_total / tau_int
-      mcse = sd / sqrt(n_eff)
-      R = batch_rhat[j]
-    }
-
-    result[j, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
-  }
+  # Where n_eff is NA (constant chain), Rhat should also be NA
+  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("indicator [", seq_len(nparam), "]"), result, check.names = FALSE)
@@ -354,9 +327,6 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   Pairs = t(combn(seq_len(no_variables), 2))
   nparam = nrow(Pairs)
 
-  result = matrix(NA, nparam, 9)
-  colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
-
   # helper to construct a "time-series"
   get_draws_pair = function(i, j) {
     out = matrix(NA, n_iter, n_ch)
@@ -372,38 +342,15 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   for(p in seq_len(nparam)) {
     array3d[, , p] = get_draws_pair(Pairs[p, 1], Pairs[p, 2])
   }
+  ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  for(p in seq_len(nparam)) {
-    i = Pairs[p, 1]
-    j = Pairs[p, 2]
-    draws = array3d[, , p]
-
-    vec = as.vector(draws)
-    n_total = length(vec)
-    g_next = vec[-1]
-    g_curr = vec[-n_total]
-
-    p_hat = mean(vec)
-    sd = sqrt(p_hat * (1 - p_hat))
-    n00 = sum(g_curr == 0 & g_next == 0)
-    n01 = sum(g_curr == 0 & g_next == 1)
-    n10 = sum(g_curr == 1 & g_next == 0)
-    n11 = sum(g_curr == 1 & g_next == 1)
-
-    if(n01 + n10 == 0) {
-      n_eff = mcse = R = NA_real_
-    } else {
-      a = n01 / (n00 + n01)
-      b = n10 / (n10 + n11)
-      tau_int = (2 - (a + b)) / (a + b)
-      n_eff = n_total / tau_int
-      mcse = sd / sqrt(n_eff)
-      R = batch_rhat[p]
-    }
-
-    result[p, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
-  }
+  result = cbind(
+    ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE],
+    Rhat = batch_rhat
+  )
+  colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
+  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
   if(is.null(node_names)) {
     rn = paste0(Pairs[, 1], "-", Pairs[, 2])
     dimn = as.character(seq_len(no_variables))
@@ -633,39 +580,14 @@ summarize_indicator_compare = function(fit, component = "indicator_samples", par
   array3d = combine_chains_compare(fit, component)
   nparam = dim(array3d)[3]
 
-  result = matrix(NA, nparam, 9)
-  colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
-
-  # Batch Rhat via C++
+  # Batch indicator ESS + transition counts via C++
+  ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  for(j in seq_len(nparam)) {
-    draws = array3d[, , j]
-    vec = as.vector(draws)
-    n_total = length(vec)
-    g_next = vec[-1]
-    g_curr = vec[-n_total]
+  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE], Rhat = batch_rhat)
+  colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
-    p_hat = mean(vec)
-    sd = sqrt(p_hat * (1 - p_hat))
-    n00 = sum(g_curr == 0 & g_next == 0)
-    n01 = sum(g_curr == 0 & g_next == 1)
-    n10 = sum(g_curr == 1 & g_next == 0)
-    n11 = sum(g_curr == 1 & g_next == 1)
-
-    if(n01 + n10 == 0) {
-      n_eff = mcse = R = NA_real_
-    } else {
-      a = n01 / (n00 + n01)
-      b = n10 / (n10 + n11)
-      tau_int = (2 - (a + b)) / (a + b)
-      n_eff = n_total / tau_int
-      mcse = sd / sqrt(n_eff)
-      R = batch_rhat[j]
-    }
-
-    result[j, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
-  }
+  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("indicator [", seq_len(nparam), "]"), result, check.names = FALSE)
@@ -711,32 +633,12 @@ summarize_mixture_effect = function(draws_pw, draws_id, name) {
   }
 
   ## --- indicator part ---
-  vec_id = as.vector(draws_id)
-  T_id = length(vec_id)
-  g_next = vec_id[-1]
-  g_curr = vec_id[-T_id]
+  id_array = array(draws_id, dim = c(niter, nchains, 1L))
+  id_stats = .compute_indicator_ess_cpp(id_array)
 
-  p_hat = mean(vec_id)
-  p_sd = sqrt(p_hat * (1 - p_hat))
-
-  if(T_id > 1) {
-    n00 = sum(g_curr == 0 & g_next == 0)
-    n01 = sum(g_curr == 0 & g_next == 1)
-    n10 = sum(g_curr == 1 & g_next == 0)
-    n11 = sum(g_curr == 1 & g_next == 1)
-
-    if(n01 + n10 == 0) {
-      p_mcse = NA_real_
-    } else {
-      a = n01 / (n00 + n01)
-      b = n10 / (n10 + n11)
-      tau_int = (2 - (a + b)) / (a + b)
-      n_eff_id = T_id / tau_int
-      p_mcse = p_sd / sqrt(n_eff_id)
-    }
-  } else {
-    p_mcse = NA_real_
-  }
+  p_hat = id_stats[1, "mean"]
+  p_sd = id_stats[1, "sd"]
+  p_mcse = id_stats[1, "mcse"]
 
   ## --- combined summaries ---
   posterior_mean = p_hat * eap_slab

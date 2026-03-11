@@ -282,3 +282,125 @@ Rcpp::NumericVector compute_rhat_cpp(Rcpp::NumericVector array3d) {
   RcppParallel::parallelFor(0, nparam, worker);
   return rhat;
 }
+
+
+// ============================================================================
+//   Binary indicator transition ESS
+// ============================================================================
+//
+// For binary (0/1) MCMC draws, ESS is computed from transition counts
+// rather than AR spectral density. For each parameter, pool draws across
+// chains into a single vector and count consecutive-pair transitions:
+//   n00, n01, n10, n11
+// Then:
+//   a = n01 / (n00 + n01)
+//   b = n10 / (n10 + n11)
+//   tau_int = (2 - a - b) / (a + b)
+//   n_eff = n_total / tau_int
+//
+// Returns an [nparam x 8] matrix with columns:
+//   mean, sd, mcse, n00, n01, n10, n11, n_eff
+//
+// Origin: two-state Markov chain integrated autocorrelation time.
+// ============================================================================
+
+struct IndicatorESSWorker : public RcppParallel::Worker {
+  const double* data;
+  const int niter;
+  const int nchains;
+  const int nparam;
+
+  // Output: nparam x 8 matrix in column-major order
+  RcppParallel::RVector<double> out;
+
+  IndicatorESSWorker(const double* data, int niter, int nchains, int nparam,
+                     Rcpp::NumericMatrix out)
+    : data(data), niter(niter), nchains(nchains), nparam(nparam),
+      out(out) {}
+
+  void operator()(std::size_t begin, std::size_t end) {
+    int n_total = niter * nchains;
+
+    for(std::size_t j = begin; j < end; j++) {
+      // Pool draws across chains: column-major 3D layout
+      // element [i, c, j] at data[i + c*niter + j*niter*nchains]
+      // Pool order: chain 0 iter 0..niter-1, chain 1 iter 0..niter-1, ...
+
+      // Single pass: accumulate sum and transition counts
+      double sum_x = 0.0;
+      int c00 = 0, c01 = 0, c10 = 0, c11 = 0;
+
+      // First element (no transition from previous)
+      const double* base = data + j * niter * nchains;
+      int prev = (int)base[0];
+      sum_x += prev;
+
+      for(int c = 0; c < nchains; c++) {
+        const double* col = base + c * niter;
+        int start = (c == 0) ? 1 : 0;
+        for(int i = start; i < niter; i++) {
+          int curr = (int)col[i];
+          sum_x += curr;
+          // Transition from prev to curr
+          if(prev == 0) {
+            if(curr == 0) c00++; else c01++;
+          } else {
+            if(curr == 0) c10++; else c11++;
+          }
+          prev = curr;
+        }
+      }
+
+      double p_hat = sum_x / n_total;
+      double sd = std::sqrt(p_hat * (1.0 - p_hat));
+
+      double n_eff, mcse;
+      if(c01 + c10 == 0) {
+        n_eff = NA_REAL;
+        mcse = NA_REAL;
+      } else {
+        double a = (double)c01 / (c00 + c01);
+        double b = (double)c10 / (c10 + c11);
+        double tau_int = (2.0 - a - b) / (a + b);
+        n_eff = n_total / tau_int;
+        mcse = (n_eff > 0.0) ? sd / std::sqrt(n_eff) : NA_REAL;
+      }
+
+      // Store in column-major matrix: out[j + col * nparam]
+      out[j + 0 * nparam] = p_hat;
+      out[j + 1 * nparam] = sd;
+      out[j + 2 * nparam] = mcse;
+      out[j + 3 * nparam] = (double)c00;
+      out[j + 4 * nparam] = (double)c01;
+      out[j + 5 * nparam] = (double)c10;
+      out[j + 6 * nparam] = (double)c11;
+      out[j + 7 * nparam] = n_eff;
+    }
+  }
+};
+
+
+// Compute indicator transition ESS for a 3D array [niter x nchains x nparam].
+// Returns an [nparam x 8] matrix with columns:
+//   mean, sd, mcse, n00, n01, n10, n11, n_eff
+// [[Rcpp::export(.compute_indicator_ess_cpp)]]
+Rcpp::NumericMatrix compute_indicator_ess_cpp(Rcpp::NumericVector array3d) {
+  Rcpp::IntegerVector dims = array3d.attr("dim");
+  int niter   = dims[0];
+  int nchains = dims[1];
+  int nparam  = dims[2];
+
+  Rcpp::NumericMatrix out(nparam, 8);
+  Rcpp::colnames(out) = Rcpp::CharacterVector::create(
+    "mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"
+  );
+
+  if(niter <= 1) {
+    std::fill(out.begin(), out.end(), NA_REAL);
+    return out;
+  }
+
+  IndicatorESSWorker worker(array3d.begin(), niter, nchains, nparam, out);
+  RcppParallel::parallelFor(0, nparam, worker);
+  return out;
+}

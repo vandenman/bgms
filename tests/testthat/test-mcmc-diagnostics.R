@@ -298,3 +298,111 @@ test_that("Rhat detects non-convergence (shifted chains)", {
   rhat = bgms:::.compute_rhat_cpp(draws)
   expect_true(rhat > 1.5)
 })
+
+
+# ---- Indicator ESS -------------------------------------------------------- #
+
+test_that("indicator ESS matches R reference implementation", {
+  set.seed(42)
+  niter = 500
+  nchains = 2
+  nparam = 3
+  draws = array(
+    sample(0:1, niter * nchains * nparam, replace = TRUE),
+    dim = c(niter, nchains, nparam)
+  )
+
+  cpp_result = bgms:::.compute_indicator_ess_cpp(draws)
+
+  # R reference (same logic as old summarize_indicator)
+  for(p in seq_len(nparam)) {
+    vec = as.vector(draws[, , p])
+    n_total = length(vec)
+    g_next = vec[-1]
+    g_curr = vec[-n_total]
+    p_hat = mean(vec)
+    sd_r = sqrt(p_hat * (1 - p_hat))
+    n00 = sum(g_curr == 0 & g_next == 0)
+    n01 = sum(g_curr == 0 & g_next == 1)
+    n10 = sum(g_curr == 1 & g_next == 0)
+    n11 = sum(g_curr == 1 & g_next == 1)
+    a = n01 / (n00 + n01)
+    b = n10 / (n10 + n11)
+    tau_int = (2 - (a + b)) / (a + b)
+    n_eff = n_total / tau_int
+    mcse_r = sd_r / sqrt(n_eff)
+
+    expect_equal(cpp_result[p, "mean"], p_hat, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "sd"], sd_r, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "mcse"], mcse_r, tolerance = 1e-12, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "n00"], n00, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "n01"], n01, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "n10"], n10, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "n11"], n11, ignore_attr = TRUE)
+    expect_equal(cpp_result[p, "n_eff"], n_eff, tolerance = 1e-12, ignore_attr = TRUE)
+  }
+})
+
+test_that("indicator ESS returns correct column names", {
+  draws = array(sample(0:1, 200, replace = TRUE), dim = c(50, 2, 2))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_equal(colnames(result), c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"))
+  expect_equal(nrow(result), 2)
+})
+
+test_that("indicator ESS handles all-zero draws (constant 0)", {
+  draws = array(0, dim = c(100, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_equal(result[1, "mean"], 0, ignore_attr = TRUE)
+  expect_equal(result[1, "sd"], 0, ignore_attr = TRUE)
+  expect_true(is.na(result[1, "n_eff"]))
+  expect_true(is.na(result[1, "mcse"]))
+  expect_equal(result[1, "n01"], 0, ignore_attr = TRUE)
+  expect_equal(result[1, "n10"], 0, ignore_attr = TRUE)
+})
+
+test_that("indicator ESS handles all-one draws (constant 1)", {
+  draws = array(1, dim = c(100, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_equal(result[1, "mean"], 1, ignore_attr = TRUE)
+  expect_equal(result[1, "sd"], 0, ignore_attr = TRUE)
+  expect_true(is.na(result[1, "n_eff"]))
+  expect_true(is.na(result[1, "mcse"]))
+  expect_equal(result[1, "n01"], 0, ignore_attr = TRUE)
+  expect_equal(result[1, "n10"], 0, ignore_attr = TRUE)
+})
+
+test_that("indicator ESS handles niter=1", {
+  draws = array(c(1, 0), dim = c(1, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(is.na(result[1, "n_eff"]))
+  expect_true(is.na(result[1, "mcse"]))
+})
+
+test_that("indicator ESS handles single chain", {
+  set.seed(7)
+  draws = array(sample(0:1, 200, replace = TRUE), dim = c(200, 1, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(is.finite(result[1, "n_eff"]))
+  expect_true(result[1, "n_eff"] > 0)
+})
+
+test_that("indicator ESS scales with multiple parameters", {
+  set.seed(99)
+  nparam = 10
+  draws = array(
+    sample(0:1, 500 * 2 * nparam, replace = TRUE),
+    dim = c(500, 2, nparam)
+  )
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_equal(nrow(result), nparam)
+  expect_true(all(result[, "n_eff"] > 0))
+  # transition counts should sum to n_total - 1
+  for(p in seq_len(nparam)) {
+    n_total = 500 * 2
+    expect_equal(
+      unname(result[p, "n00"] + result[p, "n01"] + result[p, "n10"] + result[p, "n11"]),
+      n_total - 1
+    )
+  }
+})
