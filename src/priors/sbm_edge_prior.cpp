@@ -104,17 +104,15 @@ double log_likelihood_mfm_sbm(arma::uvec cluster_assign,
 // Function: log_marginal_mfm_sbm
 //
 // Computes the log-marginal likelihood contribution for a single node under
-// the MFM-SBM after integrating out cluster connection probabilities. Uses
-// Beta-Bernoulli conjugacy with separate hyperparameters for within-cluster
-// and between-cluster edges.
+// the MFM-SBM after integrating out cluster connection probabilities. Used
+// when proposing a new cluster for the node, so all interactions are
+// between-cluster. Uses Beta-Bernoulli conjugacy.
 //
 // Inputs:
 //  - cluster_assign: Vector of cluster assignments for all nodes.
 //  - indicator: Upper-triangular matrix of edge indicators (1 = edge present).
 //  - node: Index of the node whose contribution is computed.
 //  - no_variables: Total number of nodes in the network.
-//  - beta_bernoulli_alpha: Alpha hyperparameter for within-cluster edges.
-//  - beta_bernoulli_beta: Beta hyperparameter for within-cluster edges.
 //  - beta_bernoulli_alpha_between: Alpha hyperparameter for between-cluster edges.
 //  - beta_bernoulli_beta_between: Beta hyperparameter for between-cluster edges.
 //
@@ -133,9 +131,6 @@ double log_marginal_mfm_sbm(arma::uvec cluster_assign,
   arma::uvec indicator_node = indicator.col(node); // column of indicator matrix corresponding to 'node'
   arma::vec gamma_node = arma::conv_to<arma::vec>::from(indicator_node(select_variables)); // selecting only indicators between 'node' and the remaining variables (thus excluding indicator of node with itself -- that is indicator[node,node])
   arma::uvec table_cluster = table_cpp(cluster_assign_wo_node); // frequency table of clusters excluding node
-
-  // Get the cluster assignment of the current node
-  arma::uword node_cluster = cluster_assign(node);
 
   double output = 0;
   for(arma::uword i = 0; i < table_cluster.n_elem; i++){
