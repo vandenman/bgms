@@ -96,6 +96,7 @@ print.bgms = function(x, ...) {
 #'
 #' @export
 summary.bgms = function(object, ...) {
+  ensure_summaries(object)
   arguments = extract_arguments(object)
 
   has_main = !is.null(object$posterior_summary_main)
@@ -259,6 +260,32 @@ coef.bgms = function(object, ...) {
   }
 
   return(out)
+}
+
+
+#' Access elements of a bgms object
+#'
+#' @description Intercepts access to \code{posterior_summary_*} fields and
+#'   triggers lazy computation from cache when needed. All other fields pass
+#'   through using standard list extraction.
+#'
+#' @param x A \code{bgms} object.
+#' @param name Name of the element to access.
+#'
+#' @return The requested element.
+#'
+#' @method $ bgms
+#' @export
+`$.bgms` = function(x, name) {
+  if(startsWith(name, "posterior_summary_")) {
+    cache = .subset2(x, "cache")
+    if(!is.null(cache)) {
+      ensure_summaries(x)
+      val = cache[[name]]
+      if(!is.null(val)) return(val)
+    }
+  }
+  .subset2(x, name)
 }
 
 

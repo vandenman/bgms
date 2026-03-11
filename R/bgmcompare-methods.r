@@ -83,6 +83,7 @@ print.bgmCompare = function(x, ...) {
 #'
 #' @export
 summary.bgmCompare = function(object, ...) {
+  ensure_summaries(object)
   arguments = extract_arguments(object)
 
   if(!is.null(object$posterior_summary_main_baseline) &&
@@ -400,4 +401,30 @@ coef.bgmCompare = function(object, ...) {
     pairwise_effects_groups = pairwise_effects_groups,
     indicators              = indicators
   )
+}
+
+
+#' Access elements of a bgmCompare object
+#'
+#' @description Intercepts access to \code{posterior_summary_*} fields and
+#'   triggers lazy computation from cache when needed. All other fields pass
+#'   through using standard list extraction.
+#'
+#' @param x A \code{bgmCompare} object.
+#' @param name Name of the element to access.
+#'
+#' @return The requested element.
+#'
+#' @method $ bgmCompare
+#' @export
+`$.bgmCompare` = function(x, name) {
+  if(startsWith(name, "posterior_summary_")) {
+    cache = .subset2(x, "cache")
+    if(!is.null(cache)) {
+      ensure_summaries(x)
+      val = cache[[name]]
+      if(!is.null(val)) return(val)
+    }
+  }
+  .subset2(x, name)
 }

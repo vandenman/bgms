@@ -1,5 +1,88 @@
 # Summary utilities for spike-and-slab MCMC output
 
+
+# ------------------------------------------------------------------
+# ensure_summaries
+# ------------------------------------------------------------------
+# Lazily computes MCMC diagnostics (ESS, Rhat, MCSE) and stores
+# results in fit$cache (an environment with reference semantics).
+# On first call the summaries are computed from raw chain samples;
+# subsequent calls return immediately.
+#
+# @param fit  A bgms or bgmCompare object with a $cache environment.
+#
+# Returns: invisible(NULL). Results are stored in fit$cache.
+# ------------------------------------------------------------------
+ensure_summaries = function(fit) {
+  cache = fit$cache
+  if(is.null(cache)) return(invisible(NULL))
+  if(isTRUE(cache$summaries_computed)) return(invisible(NULL))
+
+  raw = cache$raw
+  edge_selection = cache$edge_selection
+  names_main = cache$names_main
+  edge_names = cache$edge_names
+  is_continuous = cache$is_continuous
+  model_type = cache$model_type
+
+  if(identical(model_type, "compare")) {
+    names_all = cache$names_all
+    summary_list = summarize_fit_compare(
+      fit = raw,
+      main_effect_indices = cache$main_effect_indices,
+      pairwise_effect_indices = cache$pairwise_effect_indices,
+      num_variables = cache$num_variables,
+      num_groups = cache$num_groups,
+      difference_selection = cache$difference_selection,
+      param_names_main = names_all$main_baseline,
+      param_names_pairwise = names_all$pairwise_baseline,
+      param_names_main_diff = names_all$main_diff,
+      param_names_pairwise_diff = names_all$pairwise_diff,
+      param_names_indicators = names_all$indicators
+    )
+
+    cache$posterior_summary_main_baseline = summary_list$main_baseline
+    cache$posterior_summary_pairwise_baseline = summary_list$pairwise_baseline
+    cache$posterior_summary_main_differences = summary_list$main_differences
+    cache$posterior_summary_pairwise_differences = summary_list$pairwise_differences
+    cache$posterior_summary_indicator = summary_list$indicators
+
+  } else {
+    summary_list = summarize_fit(raw, edge_selection = edge_selection)
+    main_summary = summary_list$main[, -1]
+    pairwise_summary = summary_list$pairwise[, -1]
+
+    rownames(main_summary) = names_main
+    rownames(pairwise_summary) = edge_names
+
+    if(identical(model_type, "mixed_mrf")) {
+      n_main = cache$n_main
+      n_quad = cache$n_quad
+      main_rows = seq_len(n_main)
+      quad_rows = n_main + seq_len(n_quad)
+      cache$posterior_summary_main = main_summary[main_rows, , drop = FALSE]
+      cache$posterior_summary_quadratic = main_summary[quad_rows, , drop = FALSE]
+    } else if(isTRUE(is_continuous)) {
+      cache$posterior_summary_main = NULL
+      cache$posterior_summary_quadratic = main_summary
+    } else {
+      cache$posterior_summary_main = main_summary
+    }
+    cache$posterior_summary_pairwise = pairwise_summary
+
+    if(edge_selection) {
+      indicator_summary = summary_list$indicator[, -1]
+      rownames(indicator_summary) = edge_names
+      cache$posterior_summary_indicator = indicator_summary
+    }
+  }
+
+  cache$summaries_computed = TRUE
+  invisible(NULL)
+}
+
+
+
 # Combine MCMC chains into a 3D array [niter x nchains x nparam]
 combine_chains = function(fit, component) {
   nchains = length(fit)

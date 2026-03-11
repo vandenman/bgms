@@ -560,33 +560,9 @@ extract_main_effects.bgms = function(bgms_object) {
     return(bgms_object$posterior_mean_main)
   }
 
-  # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$posterior_summary_main)) {
-    vec = bgms_object$posterior_summary_main[, "mean"]
-    var_names = arguments$data_columnnames
-    num_vars = arguments$num_variables %||% arguments$no_variables
-    variable_type = arguments$variable_type
-    if(length(variable_type) == 1) {
-      variable_type = rep(variable_type, num_vars)
-    }
-
-    # OMRF: threshold matrix
-    num_cats = arguments$num_categories
-    max_cats = max(num_cats)
-    mat = matrix(NA_real_, nrow = num_vars, ncol = max_cats)
-    rownames(mat) = var_names
-    pos = 1
-    for(v in seq_len(num_vars)) {
-      if(variable_type[v] == "ordinal") {
-        k = num_cats[v]
-        mat[v, 1:k] = vec[pos:(pos + k - 1)]
-        pos = pos + k
-      } else {
-        mat[v, 1:2] = vec[pos:(pos + 1)]
-        pos = pos + 2
-      }
-    }
-    return(mat)
+  # OMRF: return pre-built threshold matrix
+  if(!is.null(bgms_object$posterior_mean_main)) {
+    return(bgms_object$posterior_mean_main)
   }
 
   # Deprecated format (0.1.4–0.1.5): $thresholds
@@ -946,6 +922,7 @@ extract_rhat = function(bgms_object) {
 #' @exportS3Method
 #' @noRd
 extract_rhat.bgms = function(bgms_object) {
+  ensure_summaries(bgms_object)
   result = list()
 
   # Main effect Rhat
@@ -983,6 +960,7 @@ extract_rhat.bgms = function(bgms_object) {
 #' @exportS3Method
 #' @noRd
 extract_rhat.bgmCompare = function(bgms_object) {
+  ensure_summaries(bgms_object)
   result = list()
 
   # Main baseline Rhat
@@ -1050,6 +1028,7 @@ extract_ess = function(bgms_object) {
 #' @exportS3Method
 #' @noRd
 extract_ess.bgms = function(bgms_object) {
+  ensure_summaries(bgms_object)
   result = list()
 
   # Main effect ESS
@@ -1087,6 +1066,7 @@ extract_ess.bgms = function(bgms_object) {
 #' @exportS3Method
 #' @noRd
 extract_ess.bgmCompare = function(bgms_object) {
+  ensure_summaries(bgms_object)
   result = list()
 
   # Main baseline ESS
