@@ -30,7 +30,6 @@ Imports:
     RcppParallel, 
     Rdpack, 
     methods, 
-    coda,
     lifecycle,
     stats
 RdMacros: Rdpack
@@ -47,6 +46,7 @@ Depends:
 LazyData: true
 Encoding: UTF-8
 Suggests: 
+    coda,
     covr,
     ggplot2,
     knitr,

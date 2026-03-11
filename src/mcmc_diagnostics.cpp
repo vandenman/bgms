@@ -1,0 +1,284 @@
+// [[Rcpp::depends(RcppParallel)]]
+#include <Rcpp.h>
+#include <RcppParallel.h>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <numeric>
+
+
+// ============================================================================
+//   ESS via AR spectral density (matching coda::effectiveSize)
+// ============================================================================
+//
+// Algorithm per chain per parameter:
+//   1. Compute biased autocovariance c[0..L], L = floor(10*log10(n))
+//   2. Levinson-Durbin recursion for AR orders 1..L
+//   3. AIC order selection: argmin_k { n*log(v_k) + 2*k }
+//   4. Spectral density at 0: spec0 = v_best / (1 - sum(a_best))^2
+//   5. ESS = n * var_unbiased / spec0
+//
+// Multi-chain ESS = sum of per-chain ESS (same as coda for mcmc.list).
+//
+// Origin: Plummer et al. (2006), coda package, spectrum0.ar + effectiveSize.
+// ============================================================================
+
+
+// --- Single-column ESS (called from worker) ----------------------------------
+
+static double compute_column_ess(const double* x, int n, int max_order) {
+  // Need at least 2 observations to estimate autocorrelation
+  if(n <= 1) return NA_REAL;
+
+  // Step 1: mean
+  double mean = 0.0;
+  for(int i = 0; i < n; i++) mean += x[i];
+  mean /= n;
+
+  // Guard against non-finite input (NaN / Inf)
+  if(!std::isfinite(mean)) return NA_REAL;
+
+  // Step 2: biased autocovariance c[0..max_order]
+  std::vector<double> acov(max_order + 1, 0.0);
+  for(int lag = 0; lag <= max_order; lag++) {
+    double s = 0.0;
+    for(int i = 0; i < n - lag; i++) {
+      s += (x[i] - mean) * (x[i + lag] - mean);
+    }
+    acov[lag] = s / n;
+  }
+
+  // Constant chain: no autocorrelation structure to estimate
+  if(acov[0] < 1e-15) return NA_REAL;
+
+  // Step 3: Levinson-Durbin + AIC selection
+  double best_aic = n * std::log(acov[0]); // AIC for order 0
+  double best_var = acov[0];
+  double best_sum_ar = 0.0;
+  int best_order = 0;
+
+  std::vector<double> a_prev, a_curr;
+  double v = acov[0];
+
+  for(int k = 1; k <= max_order; k++) {
+    // Reflection coefficient
+    double num = acov[k];
+    for(int i = 0; i < k - 1; i++) {
+      num -= a_prev[i] * acov[k - 1 - i];
+    }
+    double lambda = num / v;
+
+    // Update AR coefficients
+    a_curr.resize(k);
+    a_curr[k - 1] = lambda;
+    for(int i = 0; i < k - 1; i++) {
+      a_curr[i] = a_prev[i] - lambda * a_prev[k - 2 - i];
+    }
+
+    // Update prediction variance
+    v *= (1.0 - lambda * lambda);
+    if(v <= 0.0) break; // Numerical guard
+
+    // AIC for order k
+    double aic_k = n * std::log(v) + 2.0 * k;
+    if(aic_k < best_aic) {
+      best_aic = aic_k;
+      best_var = v;
+      best_order = k;
+      best_sum_ar = 0.0;
+      for(int i = 0; i < k; i++) best_sum_ar += a_curr[i];
+    }
+
+    a_prev.swap(a_curr);
+  }
+
+  // Step 4: spectral density at frequency 0
+  // Guard: df correction requires n - order - 1 > 0; if the selected order
+  // is too high (can happen when n is tiny), fall back to order 0.
+  if(n - best_order - 1 <= 0) {
+    best_order = 0;
+    best_var = acov[0];
+    best_sum_ar = 0.0;
+  }
+  // Apply df correction: var.pred * n / (n - order - 1), matching R's ar.yw
+  double df_corrected_var = best_var * n / (n - best_order - 1.0);
+  double denom = 1.0 - best_sum_ar;
+  double spec0 = df_corrected_var / (denom * denom);
+
+  // Step 5: ESS = n * var_unbiased / spec0
+  double var_unbiased = acov[0] * n / (n - 1.0);
+  return (spec0 > 0.0 && std::isfinite(spec0)) ? n * var_unbiased / spec0 : NA_REAL;
+}
+
+
+// --- RcppParallel worker for multi-parameter ESS -----------------------------
+
+struct ESSWorker : public RcppParallel::Worker {
+  // Input: 3D array stored as [niter x nchains x nparam] in column-major
+  const double* data;
+  const int niter;
+  const int nchains;
+  const int nparam;
+  const int max_order;
+
+  // Output
+  RcppParallel::RVector<double> ess;
+
+  ESSWorker(const double* data, int niter, int nchains, int nparam,
+            int max_order, Rcpp::NumericVector ess)
+    : data(data), niter(niter), nchains(nchains), nparam(nparam),
+      max_order(max_order), ess(ess) {}
+
+  void operator()(std::size_t begin, std::size_t end) {
+    for(std::size_t j = begin; j < end; j++) {
+      double total_ess = 0.0;
+      for(int c = 0; c < nchains; c++) {
+        // Column-major 3D: element [i, c, j] is at data[i + c*niter + j*niter*nchains]
+        const double* col = data + c * niter + j * niter * nchains;
+        total_ess += compute_column_ess(col, niter, max_order);
+      }
+      ess[j] = total_ess;
+    }
+  }
+};
+
+
+// ============================================================================
+//   Gelman-Rubin Rhat (matching coda::gelman.diag point estimate)
+// ============================================================================
+
+struct RhatWorker : public RcppParallel::Worker {
+  const double* data;
+  const int niter;
+  const int nchains;
+  const int nparam;
+
+  RcppParallel::RVector<double> rhat;
+
+  RhatWorker(const double* data, int niter, int nchains, int nparam,
+             Rcpp::NumericVector rhat)
+    : data(data), niter(niter), nchains(nchains), nparam(nparam),
+      rhat(rhat) {}
+
+  void operator()(std::size_t begin, std::size_t end) {
+    int n = niter;
+    int m = nchains;
+
+    for(std::size_t j = begin; j < end; j++) {
+      // Compute per-chain means and variances
+      double grand_mean = 0.0;
+      std::vector<double> chain_mean(m), chain_var(m);
+
+      for(int c = 0; c < m; c++) {
+        const double* col = data + c * n + j * n * m;
+        double s = 0.0;
+        for(int i = 0; i < n; i++) s += col[i];
+        chain_mean[c] = s / n;
+        grand_mean += chain_mean[c];
+
+        double s2 = 0.0;
+        for(int i = 0; i < n; i++) {
+          double d = col[i] - chain_mean[c];
+          s2 += d * d;
+        }
+        chain_var[c] = s2 / (n - 1.0);
+      }
+      grand_mean /= m;
+
+      // W = mean of within-chain variances
+      double W = 0.0;
+      for(int c = 0; c < m; c++) W += chain_var[c];
+      W /= m;
+
+      // B = n * variance of chain means (unbiased)
+      double B = 0.0;
+      for(int c = 0; c < m; c++) {
+        double d = chain_mean[c] - grand_mean;
+        B += d * d;
+      }
+      B *= n / (m - 1.0);
+
+      // --- Rhat with df adjustment (full coda formula) ---
+      // s2[c] = chain_var[c]
+      double var_w = 0.0;
+      for(int c = 0; c < m; c++) {
+        double d = chain_var[c] - W;
+        var_w += d * d;
+      }
+      var_w /= (m - 1.0) * m; // var(s2) / m
+
+      double var_b = (2.0 * B * B) / (m - 1.0);
+
+      // cov(W, B) term
+      double cov_wb = 0.0;
+      for(int c = 0; c < m; c++) {
+        double s2c = chain_var[c];
+        double xbar_c = chain_mean[c];
+        double xbar2_c = xbar_c * xbar_c;
+        cov_wb += (s2c - W) * (xbar2_c - 2.0 * grand_mean * xbar_c);
+      }
+      cov_wb *= (double)n / (m - 1.0) / m;
+
+      double V = (n - 1.0) * W / n + (1.0 + 1.0 / m) * B / n;
+      double var_V = ((double)(n - 1) * (n - 1) * var_w
+                     + (1.0 + 1.0 / m) * (1.0 + 1.0 / m) * var_b
+                     + 2.0 * (n - 1.0) * (1.0 + 1.0 / m) * cov_wb) / ((double)n * n);
+
+      double df_V = (var_V > 0) ? (2.0 * V * V) / var_V : 1e6;
+      double df_adj = (df_V + 3.0) / (df_V + 1.0);
+
+      double R2_fixed = (n - 1.0) / n;
+      double R2_random = (W > 0) ? (1.0 + 1.0 / m) * (1.0 / n) * (B / W) : 0.0;
+      double R2 = R2_fixed + R2_random;
+
+      rhat[j] = (W > 0 && R2 > 0) ? std::sqrt(df_adj * R2) : NA_REAL;
+    }
+  }
+};
+
+
+// ============================================================================
+//   Rcpp exports
+// ============================================================================
+
+// Compute ESS for a 3D array [niter x nchains x nparam].
+// Multi-chain ESS = sum of per-chain ESS.
+// [[Rcpp::export(.compute_ess_cpp)]]
+Rcpp::NumericVector compute_ess_cpp(Rcpp::NumericVector array3d) {
+  Rcpp::IntegerVector dims = array3d.attr("dim");
+  int niter   = dims[0];
+  int nchains = dims[1];
+  int nparam  = dims[2];
+
+  if(niter <= 1) {
+    return Rcpp::NumericVector(nparam, NA_REAL);
+  }
+
+  int max_order = std::min(niter - 1,
+                           (int)std::floor(10.0 * std::log10((double)niter)));
+
+  Rcpp::NumericVector ess(nparam);
+  ESSWorker worker(array3d.begin(), niter, nchains, nparam, max_order, ess);
+  RcppParallel::parallelFor(0, nparam, worker);
+  return ess;
+}
+
+
+// Compute Rhat for a 3D array [niter x nchains x nparam].
+// Returns NA for single-chain input.
+// [[Rcpp::export(.compute_rhat_cpp)]]
+Rcpp::NumericVector compute_rhat_cpp(Rcpp::NumericVector array3d) {
+  Rcpp::IntegerVector dims = array3d.attr("dim");
+  int niter   = dims[0];
+  int nchains = dims[1];
+  int nparam  = dims[2];
+
+  if(nchains < 2 || niter <= 1) {
+    return Rcpp::NumericVector(nparam, NA_REAL);
+  }
+
+  Rcpp::NumericVector rhat(nparam);
+  RhatWorker worker(array3d.begin(), niter, nchains, nparam, rhat);
+  RcppParallel::parallelFor(0, nparam, worker);
+  return rhat;
+}

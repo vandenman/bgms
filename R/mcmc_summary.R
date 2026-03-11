@@ -82,7 +82,6 @@ ensure_summaries = function(fit) {
 }
 
 
-
 # Combine MCMC chains into a 3D array [niter x nchains x nparam]
 combine_chains = function(fit, component) {
   nchains = length(fit)
@@ -96,24 +95,14 @@ combine_chains = function(fit, component) {
   array3d
 }
 
-# Compute effective sample size and Rhat (Gelman-Rubin diagnostic)
+# Compute ESS and Rhat for a single [niter x nchains] draws matrix.
+# Used only by summarize_slab() where the draws are variable-length.
 compute_rhat_ess = function(draws) {
-  tryCatch(
-    {
-      if(is.matrix(draws) && ncol(draws) > 1) {
-        mcmc_list = coda::mcmc.list(
-          lapply(seq_len(ncol(draws)), function(i) coda::mcmc(draws[, i]))
-        )
-        ess = coda::effectiveSize(mcmc_list)
-        rhat = coda::gelman.diag(mcmc_list, autoburnin = FALSE)$psrf[1]
-      } else {
-        ess = coda::effectiveSize(draws)
-        rhat = NA_real_
-      }
-      list(ess = ess, rhat = rhat)
-    },
-    error = function(e) list(ess = NA_real_, rhat = NA_real_)
-  )
+  if(!is.matrix(draws)) draws = matrix(draws, ncol = 1)
+  arr = array(draws, dim = c(nrow(draws), ncol(draws), 1L))
+  ess = .compute_ess_cpp(arr)[1]
+  rhat = .compute_rhat_cpp(arr)[1]
+  list(ess = ess, rhat = rhat)
 }
 
 # Basic summarizer for continuous parameters
@@ -122,19 +111,17 @@ summarize_manual = function(fit, component = c("main_samples", "pairwise_samples
   if(is.null(array3d)) array3d = combine_chains(fit, component)
   nparam = dim(array3d)[3]
 
-  result = matrix(NA, nparam, 5)
-  colnames(result) = c("mean", "mcse", "sd", "n_eff", "Rhat")
+  # Batch computation via C++
+  ess = .compute_ess_cpp(array3d)
+  rhat = .compute_rhat_cpp(array3d)
 
-  for(j in seq_len(nparam)) {
-    draws = array3d[, , j]
-    vec = as.vector(draws)
-    result[j, "mean"] = mean(vec)
-    result[j, "sd"] = sd(vec)
-    est = compute_rhat_ess(draws)
-    result[j, "mcse"] = sd(vec) / sqrt(est$ess)
-    result[j, "n_eff"] = est$ess
-    result[j, "Rhat"] = est$rhat
-  }
+  # Vectorized mean and sd across all iterations and chains
+  pooled = matrix(array3d, nrow = dim(array3d)[1] * dim(array3d)[2], ncol = nparam)
+  means = colMeans(pooled)
+  sds = apply(pooled, 2, sd)
+  mcse = sds / sqrt(ess)
+
+  result = cbind(mean = means, mcse = mcse, sd = sds, n_eff = ess, Rhat = rhat)
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("parameter [", seq_len(nparam), "]"), result, check.names = FALSE)
@@ -154,6 +141,9 @@ summarize_indicator = function(fit, component = c("indicator_samples"), param_na
 
   result = matrix(NA, nparam, 9)
   colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
+
+  # Batch Rhat via C++
+  batch_rhat = .compute_rhat_cpp(array3d)
 
   for(j in seq_len(nparam)) {
     draws = array3d[, , j]
@@ -177,8 +167,7 @@ summarize_indicator = function(fit, component = c("indicator_samples"), param_na
       tau_int = (2 - (a + b)) / (a + b)
       n_eff = n_total / tau_int
       mcse = sd / sqrt(n_eff)
-      est = compute_rhat_ess(draws)
-      R = est$rhat
+      R = batch_rhat[j]
     }
 
     result[j, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
@@ -378,10 +367,17 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
     out
   }
 
+  # Pre-build 3D array and batch Rhat via C++
+  array3d = array(NA_real_, dim = c(n_iter, n_ch, nparam))
+  for(p in seq_len(nparam)) {
+    array3d[, , p] = get_draws_pair(Pairs[p, 1], Pairs[p, 2])
+  }
+  batch_rhat = .compute_rhat_cpp(array3d)
+
   for(p in seq_len(nparam)) {
     i = Pairs[p, 1]
     j = Pairs[p, 2]
-    draws = get_draws_pair(i, j)
+    draws = array3d[, , p]
 
     vec = as.vector(draws)
     n_total = length(vec)
@@ -403,8 +399,7 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
       tau_int = (2 - (a + b)) / (a + b)
       n_eff = n_total / tau_int
       mcse = sd / sqrt(n_eff)
-      est = compute_rhat_ess(draws)
-      R = est$rhat
+      R = batch_rhat[p]
     }
 
     result[p, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
@@ -613,19 +608,18 @@ summarize_manual_compare = function(fit_or_array,
   }
 
   nparam = dim(array3d)[3]
-  result = matrix(NA, nparam, 5)
-  colnames(result) = c("mean", "mcse", "sd", "n_eff", "Rhat")
 
-  for(j in seq_len(nparam)) {
-    draws = array3d[, , j]
-    vec = as.vector(draws)
-    result[j, "mean"] = mean(vec)
-    result[j, "sd"] = sd(vec)
-    est = compute_rhat_ess(draws)
-    result[j, "mcse"] = sd(vec) / sqrt(est$ess)
-    result[j, "n_eff"] = est$ess
-    result[j, "Rhat"] = est$rhat
-  }
+  # Batch computation via C++
+  ess = .compute_ess_cpp(array3d)
+  rhat = .compute_rhat_cpp(array3d)
+
+  # Vectorized mean and sd across all iterations and chains
+  pooled = matrix(array3d, nrow = dim(array3d)[1] * dim(array3d)[2], ncol = nparam)
+  means = colMeans(pooled)
+  sds = apply(pooled, 2, sd)
+  mcse = sds / sqrt(ess)
+
+  result = cbind(mean = means, mcse = mcse, sd = sds, n_eff = ess, Rhat = rhat)
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("param [", seq_len(nparam)), result, check.names = FALSE)
@@ -641,6 +635,9 @@ summarize_indicator_compare = function(fit, component = "indicator_samples", par
 
   result = matrix(NA, nparam, 9)
   colnames(result) = c("mean", "sd", "mcse", "n0->0", "n0->1", "n1->0", "n1->1", "n_eff", "Rhat")
+
+  # Batch Rhat via C++
+  batch_rhat = .compute_rhat_cpp(array3d)
 
   for(j in seq_len(nparam)) {
     draws = array3d[, , j]
@@ -664,8 +661,7 @@ summarize_indicator_compare = function(fit, component = "indicator_samples", par
       tau_int = (2 - (a + b)) / (a + b)
       n_eff = n_total / tau_int
       mcse = sd / sqrt(n_eff)
-      est = compute_rhat_ess(draws)
-      R = est$rhat
+      R = batch_rhat[j]
     }
 
     result[j, ] = c(p_hat, sd, mcse, n00, n01, n10, n11, n_eff, R)
