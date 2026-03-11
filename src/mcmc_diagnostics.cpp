@@ -299,7 +299,7 @@ Rcpp::NumericVector compute_rhat_cpp(Rcpp::NumericVector array3d) {
 //   n_eff = n_total / tau_int
 //
 // Returns an [nparam x 8] matrix with columns:
-//   mean, sd, mcse, n00, n01, n10, n11, n_eff
+//   mean, sd, mcse, n00, n01, n10, n11, n_eff_mixt
 //
 // Origin: two-state Markov chain integrated autocorrelation time.
 // ============================================================================
@@ -354,16 +354,16 @@ struct IndicatorESSWorker : public RcppParallel::Worker {
       double p_hat = sum_x / n_total;
       double sd = std::sqrt(p_hat * (1.0 - p_hat));
 
-      double n_eff, mcse;
+      double n_eff_mixt, mcse;
       if(c01 + c10 == 0) {
-        n_eff = NA_REAL;
+        n_eff_mixt = NA_REAL;
         mcse = NA_REAL;
       } else {
         double a = (double)c01 / (c00 + c01);
         double b = (double)c10 / (c10 + c11);
         double tau_int = (2.0 - a - b) / (a + b);
-        n_eff = n_total / tau_int;
-        mcse = (n_eff > 0.0) ? sd / std::sqrt(n_eff) : NA_REAL;
+        n_eff_mixt = n_total / tau_int;
+        mcse = (n_eff_mixt > 0.0) ? sd / std::sqrt(n_eff_mixt) : NA_REAL;
       }
 
       // Store in column-major matrix: out[j + col * nparam]
@@ -374,7 +374,7 @@ struct IndicatorESSWorker : public RcppParallel::Worker {
       out[j + 4 * nparam] = (double)c01;
       out[j + 5 * nparam] = (double)c10;
       out[j + 6 * nparam] = (double)c11;
-      out[j + 7 * nparam] = n_eff;
+      out[j + 7 * nparam] = n_eff_mixt;
     }
   }
 };
@@ -382,7 +382,7 @@ struct IndicatorESSWorker : public RcppParallel::Worker {
 
 // Compute indicator transition ESS for a 3D array [niter x nchains x nparam].
 // Returns an [nparam x 8] matrix with columns:
-//   mean, sd, mcse, n00, n01, n10, n11, n_eff
+//   mean, sd, mcse, n00, n01, n10, n11, n_eff_mixt
 // [[Rcpp::export(.compute_indicator_ess_cpp)]]
 Rcpp::NumericMatrix compute_indicator_ess_cpp(Rcpp::NumericVector array3d) {
   Rcpp::IntegerVector dims = array3d.attr("dim");
@@ -392,7 +392,7 @@ Rcpp::NumericMatrix compute_indicator_ess_cpp(Rcpp::NumericVector array3d) {
 
   Rcpp::NumericMatrix out(nparam, 8);
   Rcpp::colnames(out) = Rcpp::CharacterVector::create(
-    "mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"
+    "mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"
   );
 
   if(niter <= 1) {

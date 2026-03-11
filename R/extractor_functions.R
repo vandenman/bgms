@@ -1051,7 +1051,7 @@ extract_ess.bgms = function(bgms_object) {
 
   # Indicator ESS (if edge selection was used)
   if(!is.null(bgms_object$posterior_summary_indicator)) {
-    result$indicator = bgms_object$posterior_summary_indicator$n_eff
+    result$indicator = bgms_object$posterior_summary_indicator$n_eff_mixt
     names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
   }
 
@@ -1095,7 +1095,7 @@ extract_ess.bgmCompare = function(bgms_object) {
 
   # Indicator ESS (if difference selection was used)
   if(!is.null(bgms_object$posterior_summary_indicator)) {
-    result$indicator = bgms_object$posterior_summary_indicator$n_eff
+    result$indicator = bgms_object$posterior_summary_indicator$n_eff_mixt
     names(result$indicator) = rownames(bgms_object$posterior_summary_indicator)
   }
 

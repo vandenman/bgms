@@ -140,11 +140,11 @@ summarize_indicator = function(fit, component = c("indicator_samples"), param_na
   ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE], Rhat = batch_rhat)
+  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
-  # Where n_eff is NA (constant chain), Rhat should also be NA
-  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
+  # Where n_eff_mixt is NA (constant chain), Rhat should also be NA
+  result[is.na(result[, "n_eff_mixt"]), "Rhat"] = NA_real_
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("indicator [", seq_len(nparam), "]"), result, check.names = FALSE)
@@ -218,49 +218,28 @@ summarize_pair = function(fit,
   mcse2 = (summ_slab$mean^2 * summ_ind$mcse^2) + (summ_ind$mean^2 * summ_slab$mcse^2)
   mcse = sqrt(mcse2)
   sd = sqrt(v)
-  n_eff = v / mcse2
+  n_eff_mixt = v / mcse2
 
-  rhat = rep(NA_real_, nparam)
-  nchains = dim(array3d_pw)[2]
-  n_total = prod(dim(array3d_pw)[1:2])
-
-  for(j in seq_len(nparam)) {
-    draws_pw = array3d_pw[, , j]
-    draws_id = array3d_id[, , j]
-    if(nchains > 1) {
-      chain_means = numeric(nchains)
-      chain_vars = numeric(nchains)
-      for(chain in 1:nchains) {
-        pi = mean(draws_id[, chain])
-        tmp = draws_pw[, chain]
-        e = mean(tmp[tmp != 0])
-        v = var(tmp[tmp != 0])
-        chain_means[chain] = pi * e
-        chain_vars[chain] = pi * (v + (1 - pi) * e^2)
-      }
-      B = n_total * sum((chain_means - eap[j])^2) / (nchains - 1)
-      W = mean(chain_vars)
-      V = (n_total - 1) * W / n_total + B / n_total
-      rhat[j] = sqrt(V / W)
-    }
-  }
+  # Unconditional ESS and Rhat on the raw effect chain (includes zeros)
+  n_eff = .compute_ess_cpp(array3d_pw)
+  rhat = .compute_rhat_cpp(array3d_pw)
 
   data.frame(
     parameter = paste0("V[", seq_len(nparam), "]"),
-    mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, Rhat = rhat,
+    mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
     check.names = FALSE
   )
 
   if(is.null(param_names)) {
     data.frame(
       parameter = paste0("weight [", seq_len(nparam), "]"),
-      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, Rhat = rhat,
+      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
       check.names = FALSE
     )
   } else {
     data.frame(
       parameter = paste0(param_names, "- weight"),
-      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, Rhat = rhat,
+      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
       check.names = FALSE
     )
   }
@@ -299,9 +278,13 @@ summarize_fit = function(fit, edge_selection = FALSE) {
   )
   manual_summary = summarize_manual(fit, component = "pairwise_samples", array3d = array3d_pw)
 
-  # Replace rows in full_summary with manual results for fully selected entries
+  # Replace rows in full_summary with manual results for fully selected entries.
+  # manual_summary lacks n_eff_mixt; for always-included edges, mixture ESS is
+  # undefined, so set it to NA and copy the remaining columns.
   if(any(all_selected)) {
-    full_summary[all_selected, ] = manual_summary[all_selected, ]
+    shared_cols = intersect(names(full_summary), names(manual_summary))
+    full_summary[all_selected, shared_cols] = manual_summary[all_selected, shared_cols]
+    full_summary[all_selected, "n_eff_mixt"] = NA_real_
   }
 
   pair_summary = full_summary
@@ -346,11 +329,11 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   batch_rhat = .compute_rhat_cpp(array3d)
 
   result = cbind(
-    ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE],
+    ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE],
     Rhat = batch_rhat
   )
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
-  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
+  result[is.na(result[, "n_eff_mixt"]), "Rhat"] = NA_real_
   if(is.null(node_names)) {
     rn = paste0(Pairs[, 1], "-", Pairs[, 2])
     dimn = as.character(seq_len(no_variables))
@@ -584,10 +567,10 @@ summarize_indicator_compare = function(fit, component = "indicator_samples", par
   ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff"), drop = FALSE], Rhat = batch_rhat)
+  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
-  result[is.na(result[, "n_eff"]), "Rhat"] = NA_real_
+  result[is.na(result[, "n_eff_mixt"]), "Rhat"] = NA_real_
 
   if(is.null(param_names)) {
     data.frame(parameter = paste0("indicator [", seq_len(nparam), "]"), result, check.names = FALSE)
@@ -648,32 +631,12 @@ summarize_mixture_effect = function(draws_pw, draws_id, name) {
   mcse2 = (eap_slab^2 * p_mcse^2) + (p_hat^2 * mcse_slab^2)
 
   mcse = if(is.finite(mcse2) && mcse2 > 0) sqrt(mcse2) else NA_real_
-  n_eff = if(!is.na(mcse) && mcse > 0) v / (mcse^2) else NA_real_
+  n_eff_mixt = if(!is.na(mcse) && mcse > 0) v / (mcse^2) else NA_real_
 
-  ## --- Rhat (mixture, across chains) ---
-  Rhat = NA_real_
-  if(nchains > 1) {
-    chain_means = numeric(nchains)
-    chain_vars = numeric(nchains)
-    for(ch in seq_len(nchains)) {
-      pi_ch = mean(draws_id[, ch])
-      tmp = draws_pw[, ch]
-      nz_ch = tmp != 0
-      if(isTRUE(any(nz_ch))) {
-        e_ch = mean(tmp[nz_ch], na.rm = TRUE)
-        v_ch = if(sum(nz_ch, na.rm = TRUE) > 1) var(tmp[nz_ch], na.rm = TRUE) else 0
-      } else {
-        e_ch = 0
-        v_ch = 0
-      }
-      chain_means[ch] = pi_ch * e_ch
-      chain_vars[ch] = pi_ch * (v_ch + (1 - pi_ch) * e_ch^2)
-    }
-    B = niter * sum((chain_means - posterior_mean)^2) / (nchains - 1)
-    W = mean(chain_vars)
-    V = (niter - 1) * W / niter + B / niter
-    if(W > 0) Rhat = sqrt(V / W)
-  }
+  ## --- unconditional ESS and Rhat on the raw effect chain ---
+  pw_array = array(draws_pw, dim = c(niter, nchains, 1L))
+  n_eff = .compute_ess_cpp(pw_array)[1]
+  Rhat = if(nchains > 1) .compute_rhat_cpp(pw_array)[1] else NA_real_
 
   data.frame(
     parameter = name,
@@ -681,6 +644,7 @@ summarize_mixture_effect = function(draws_pw, draws_id, name) {
     sd = posterior_sd,
     mcse = mcse,
     n_eff = n_eff,
+    n_eff_mixt = n_eff_mixt,
     Rhat = Rhat,
     check.names = FALSE
   )
