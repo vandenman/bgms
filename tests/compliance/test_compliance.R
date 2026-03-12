@@ -101,7 +101,8 @@
 #    CRAN 0.1.6.3 placed MCSE in the sd column and SD in the mcse column
 #    for edge-selected pairwise summaries. The new code has them correct:
 #    sd = posterior SD, mcse = sd / sqrt(n_eff).
-#    Fix: swap sd and mcse in fixture before comparing pairwise summaries.
+#    Fix: comparisons strip sd and mcse columns (along with other derived
+#    columns in diag_cols), so the historical swap is ignored.
 #
 # ==============================================================================
 

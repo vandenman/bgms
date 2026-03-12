@@ -396,7 +396,29 @@ Rcpp::NumericMatrix compute_indicator_ess_cpp(Rcpp::NumericVector array3d) {
   );
 
   if(niter <= 1) {
-    std::fill(out.begin(), out.end(), NA_REAL);
+    // With 0 or 1 iterations we can still compute mean/sd/counts but
+    // transition-based mcse and n_eff_mixt are undefined.
+    if(niter == 0) {
+      std::fill(out.begin(), out.end(), NA_REAL);
+      return out;
+    }
+    // niter == 1: compute mean, sd, zero transitions; mcse/n_eff_mixt = NA
+    for(int j = 0; j < nparam; j++) {
+      double sum_x = 0.0;
+      int n_total = nchains; // niter * nchains with niter == 1
+      for(int c = 0; c < nchains; c++) {
+        sum_x += array3d[c * niter + j * niter * nchains];
+      }
+      double p_hat = sum_x / n_total;
+      out[j + 0 * nparam] = p_hat;
+      out[j + 1 * nparam] = std::sqrt(p_hat * (1.0 - p_hat));
+      out[j + 2 * nparam] = NA_REAL; // mcse
+      out[j + 3 * nparam] = 0.0;     // n00
+      out[j + 4 * nparam] = 0.0;     // n01
+      out[j + 5 * nparam] = 0.0;     // n10
+      out[j + 6 * nparam] = 0.0;     // n11
+      out[j + 7 * nparam] = NA_REAL; // n_eff_mixt
+    }
     return out;
   }
 

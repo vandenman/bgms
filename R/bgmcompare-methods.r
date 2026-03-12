@@ -424,6 +424,7 @@ coef.bgmCompare = function(object, ...) {
 #'
 #' @method $ bgmCompare
 #' @export
+#' @keywords internal
 `$.bgmCompare` = function(x, name) {
   if(startsWith(name, "posterior_summary_")) {
     cache = .subset2(x, "cache")

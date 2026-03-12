@@ -282,6 +282,7 @@ coef.bgms = function(object, ...) {
 #'
 #' @method $ bgms
 #' @export
+#' @keywords internal
 `$.bgms` = function(x, name) {
   if(startsWith(name, "posterior_summary_")) {
     cache = .subset2(x, "cache")

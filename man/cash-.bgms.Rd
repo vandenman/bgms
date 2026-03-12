@@ -19,3 +19,4 @@ Intercepts access to \code{posterior_summary_*} fields and
 triggers lazy computation from cache when needed. All other fields pass
 through using standard list extraction.
 }
+\keyword{internal}
