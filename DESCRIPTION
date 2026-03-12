@@ -46,11 +46,8 @@ Depends:
 LazyData: true
 Encoding: UTF-8
 Suggests: 
-    coda,
     covr,
-    ggplot2,
     knitr,
-    MASS,
     parallel,
     qgraph,
     rmarkdown,
