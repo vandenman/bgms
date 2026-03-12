@@ -46,6 +46,7 @@ Depends:
 LazyData: true
 Encoding: UTF-8
 Suggests: 
+    coda,
     covr,
     knitr,
     parallel,
