@@ -176,6 +176,32 @@ test_that("ESS returns NA when draws contain -Inf", {
   expect_true(is.na(ess))
 })
 
+test_that("ESS returns NA when draws contain R's NA", {
+  draws = make_array(c(1, 2, NA, 4, 5, 6, 7, 8, 9, 10), niter = 5, nchains = 2)
+  ess = bgms:::.compute_ess_cpp(draws)
+  expect_true(is.na(ess))
+})
+
+test_that("Rhat returns NA when draws contain R's NA", {
+  draws = make_array(c(1, 2, NA, 4, 5, 6, 7, 8, 9, 10), niter = 5, nchains = 2)
+  rhat = bgms:::.compute_rhat_cpp(draws)
+  expect_true(is.na(rhat))
+})
+
+test_that("Rhat returns NA when draws contain -Inf", {
+  draws = make_array(c(1, 2, -Inf, 4, 5, 6, 7, 8, 9, 10), niter = 5, nchains = 2)
+  rhat = bgms:::.compute_rhat_cpp(draws)
+  expect_true(is.na(rhat))
+})
+
+test_that("Rhat is finite for niter = 2", {
+  set.seed(7)
+  draws = make_array(rnorm(4), niter = 2, nchains = 2)
+  rhat = bgms:::.compute_rhat_cpp(draws)
+  expect_length(rhat, 1)
+  expect_true(is.na(rhat) || is.finite(rhat))
+})
+
 
 # ---- Mixed pathological and good parameters -------------------------------- #
 
@@ -405,4 +431,34 @@ test_that("indicator ESS scales with multiple parameters", {
       n_total - 1
     )
   }
+})
+
+test_that("indicator ESS returns all-NA row when draws contain NaN", {
+  draws = array(c(1, 0, NaN, 1, 0, 1, 0, 1, 0, 1), dim = c(5, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(all(is.na(result[1, ])))
+})
+
+test_that("indicator ESS returns all-NA row when draws contain R's NA", {
+  draws = array(c(1, 0, NA, 1, 0, 1, 0, 1, 0, 1), dim = c(5, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(all(is.na(result[1, ])))
+})
+
+test_that("indicator ESS returns all-NA row when draws contain Inf", {
+  draws = array(c(1, 0, Inf, 1, 0, 1, 0, 1, 0, 1), dim = c(5, 2, 1))
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(all(is.na(result[1, ])))
+})
+
+test_that("NaN in one indicator parameter does not corrupt others", {
+  set.seed(5)
+  good = sample(0:1, 200, replace = TRUE)
+  bad = c(sample(0:1, 99, replace = TRUE), NaN, sample(0:1, 100, replace = TRUE))
+  draws = array(c(good, bad), dim = c(100, 2, 2))
+
+  result = bgms:::.compute_indicator_ess_cpp(draws)
+  expect_true(is.finite(result[1, "mean"]))       # good parameter
+  expect_true(is.finite(result[1, "n_eff_mixt"]))
+  expect_true(all(is.na(result[2, ])))             # bad parameter
 })

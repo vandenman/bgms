@@ -185,6 +185,13 @@ struct RhatWorker : public RcppParallel::Worker {
       }
       grand_mean /= m;
 
+      // Guard: if any chain summary is non-finite (NaN/Inf in input),
+      // skip this parameter.
+      if(!std::isfinite(grand_mean)) {
+        rhat[j] = NA_REAL;
+        continue;
+      }
+
       // W = mean of within-chain variances
       double W = 0.0;
       for(int c = 0; c < m; c++) W += chain_var[c];
@@ -329,26 +336,46 @@ struct IndicatorESSWorker : public RcppParallel::Worker {
       // Single pass: accumulate sum and transition counts
       double sum_x = 0.0;
       int c00 = 0, c01 = 0, c10 = 0, c11 = 0;
+      bool has_nonfinite = false;
 
       // First element (no transition from previous)
       const double* base = data + j * niter * nchains;
-      int prev = (int)base[0];
-      sum_x += prev;
 
-      for(int c = 0; c < nchains; c++) {
-        const double* col = base + c * niter;
-        int start = (c == 0) ? 1 : 0;
-        for(int i = start; i < niter; i++) {
-          int curr = (int)col[i];
-          sum_x += curr;
-          // Transition from prev to curr
-          if(prev == 0) {
-            if(curr == 0) c00++; else c01++;
-          } else {
-            if(curr == 0) c10++; else c11++;
+      // Guard: if the first value is non-finite, skip computation
+      if(!std::isfinite(base[0])) {
+        has_nonfinite = true;
+      }
+
+      int prev = 0;
+      if(!has_nonfinite) {
+        prev = (int)base[0];
+        sum_x += prev;
+
+        for(int c = 0; c < nchains && !has_nonfinite; c++) {
+          const double* col = base + c * niter;
+          int start = (c == 0) ? 1 : 0;
+          for(int i = start; i < niter; i++) {
+            double raw = col[i];
+            if(!std::isfinite(raw)) {
+              has_nonfinite = true;
+              break;
+            }
+            int curr = (int)raw;
+            sum_x += curr;
+            // Transition from prev to curr
+            if(prev == 0) {
+              if(curr == 0) c00++; else c01++;
+            } else {
+              if(curr == 0) c10++; else c11++;
+            }
+            prev = curr;
           }
-          prev = curr;
         }
+      }
+
+      if(has_nonfinite) {
+        for(int k = 0; k < 8; k++) out[j + k * nparam] = NA_REAL;
+        continue;
       }
 
       double p_hat = sum_x / n_total;
