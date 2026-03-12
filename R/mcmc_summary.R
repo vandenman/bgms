@@ -140,7 +140,7 @@ summarize_indicator = function(fit, component = c("indicator_samples"), param_na
   ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
+  result = cbind(ind_stats[, c("mean", "mcse", "sd", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
   # Where n_eff_mixt is NA (constant chain), Rhat should also be NA
@@ -162,7 +162,7 @@ summarize_slab = function(fit, component = c("pairwise_samples"), param_names = 
   if(is.null(array3d)) array3d = combine_chains(fit, component)
   nparam = dim(array3d)[3]
   result = matrix(NA, nparam, 5)
-  colnames(result) = c("mean", "sd", "mcse", "n_eff", "Rhat")
+  colnames(result) = c("mean", "mcse", "sd", "n_eff", "Rhat")
 
   for(j in seq_len(nparam)) {
     draws = array3d[, , j]
@@ -224,22 +224,16 @@ summarize_pair = function(fit,
   n_eff = .compute_ess_cpp(array3d_pw)
   rhat = .compute_rhat_cpp(array3d_pw)
 
-  data.frame(
-    parameter = paste0("V[", seq_len(nparam), "]"),
-    mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
-    check.names = FALSE
-  )
-
   if(is.null(param_names)) {
     data.frame(
       parameter = paste0("weight [", seq_len(nparam), "]"),
-      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
+      mean = eap, mcse = mcse, sd = sd, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
       check.names = FALSE
     )
   } else {
     data.frame(
       parameter = paste0(param_names, "- weight"),
-      mean = eap, sd = sd, mcse = mcse, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
+      mean = eap, mcse = mcse, sd = sd, n_eff = n_eff, n_eff_mixt = n_eff_mixt, Rhat = rhat,
       check.names = FALSE
     )
   }
@@ -329,7 +323,7 @@ summarize_alloc_pairs = function(allocations, node_names = NULL) {
   batch_rhat = .compute_rhat_cpp(array3d)
 
   result = cbind(
-    ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE],
+    ind_stats[, c("mean", "mcse", "sd", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE],
     Rhat = batch_rhat
   )
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
@@ -567,7 +561,7 @@ summarize_indicator_compare = function(fit, component = "indicator_samples", par
   ind_stats = .compute_indicator_ess_cpp(array3d)
   batch_rhat = .compute_rhat_cpp(array3d)
 
-  result = cbind(ind_stats[, c("mean", "sd", "mcse", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
+  result = cbind(ind_stats[, c("mean", "mcse", "sd", "n00", "n01", "n10", "n11", "n_eff_mixt"), drop = FALSE], Rhat = batch_rhat)
   colnames(result)[4:7] = c("n0->0", "n0->1", "n1->0", "n1->1")
 
   result[is.na(result[, "n_eff_mixt"]), "Rhat"] = NA_real_
@@ -641,8 +635,8 @@ summarize_mixture_effect = function(draws_pw, draws_id, name) {
   data.frame(
     parameter = name,
     mean = posterior_mean,
-    sd = posterior_sd,
     mcse = mcse,
+    sd = posterior_sd,
     n_eff = n_eff,
     n_eff_mixt = n_eff_mixt,
     Rhat = Rhat,
