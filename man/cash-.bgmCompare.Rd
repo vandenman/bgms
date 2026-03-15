@@ -2,14 +2,19 @@
 % Please edit documentation in R/bgmcompare-methods.r
 \name{$.bgmCompare}
 \alias{$.bgmCompare}
+\alias{[[.bgmCompare}
 \title{Access elements of a bgmCompare object}
 \usage{
 \method{$}{bgmCompare}(x, name)
+
+\method{[[}{bgmCompare}(x, name, ...)
 }
 \arguments{
 \item{x}{A \code{bgmCompare} object.}
 
 \item{name}{Name of the element to access.}
+
+\item{...}{Ignored.}
 }
 \value{
 The requested element.

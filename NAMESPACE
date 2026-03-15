@@ -2,6 +2,8 @@
 
 S3method("$",bgmCompare)
 S3method("$",bgms)
+S3method("[[",bgmCompare)
+S3method("[[",bgms)
 S3method(coef,bgmCompare)
 S3method(coef,bgms)
 S3method(extract_arguments,bgmCompare)

@@ -2,14 +2,19 @@
 % Please edit documentation in R/bgms-methods.R
 \name{$.bgms}
 \alias{$.bgms}
+\alias{[[.bgms}
 \title{Access elements of a bgms object}
 \usage{
 \method{$}{bgms}(x, name)
+
+\method{[[}{bgms}(x, name, ...)
 }
 \arguments{
 \item{x}{A \code{bgms} object.}
 
 \item{name}{Name of the element to access.}
+
+\item{...}{Ignored.}
 }
 \value{
 The requested element.

@@ -296,6 +296,24 @@ coef.bgms = function(object, ...) {
 }
 
 
+#' @rdname cash-.bgms
+#' @param ... Ignored.
+#' @method [[ bgms
+#' @export
+#' @keywords internal
+`[[.bgms` = function(x, name, ...) {
+  if(is.character(name) && startsWith(name, "posterior_summary_")) {
+    cache = .subset2(x, "cache")
+    if(!is.null(cache)) {
+      ensure_summaries(x)
+      val = cache[[name]]
+      if(!is.null(val)) return(val)
+    }
+  }
+  .subset2(x, name)
+}
+
+
 .warning_state = new.env(parent = emptyenv())
 .warning_state$issued = FALSE
 
