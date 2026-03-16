@@ -227,9 +227,8 @@ print.summary.bgms = function(x, digits = 3, ...) {
 #'     (p x max_categories) of category thresholds. For mixed MRF models this
 #'     is a list with \code{$discrete} (p x max_categories matrix) and
 #'     \code{$continuous} (q x 1 matrix of means).}
-#'   \item{pairwise}{Posterior mean of the pairwise interaction matrix. For GGM
-#'     and mixed MRF models the precision matrix diagonal is included on the
-#'     matrix diagonal.}
+#'   \item{pairwise}{Posterior mean of the partial association matrix (zero
+#'     diagonal). Use [extract_precision()] for the full precision matrix.}
 #'   \item{indicator}{Posterior mean of the edge inclusion indicators (if available).}
 #' }
 #'
@@ -246,7 +245,7 @@ print.summary.bgms = function(x, digits = 3, ...) {
 coef.bgms = function(object, ...) {
   out = list(
     main = object$posterior_mean_main,
-    pairwise = object$posterior_mean_pairwise
+    pairwise = object$posterior_mean_associations
   )
   if(!is.null(object$posterior_mean_indicator)) {
     out$indicator = object$posterior_mean_indicator

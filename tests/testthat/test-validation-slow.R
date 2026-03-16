@@ -56,7 +56,7 @@ test_that("mixed MRF parameter recovery: cor > 0.8 (small network)", {
 
   true_blocks = list(
     mux = net$mux, muy = net$muy,
-    Kxx = net$Kxx, Kxy = net$Kxy, Kyy = net$Kyy
+    pairwise_disc = net$pairwise_disc, pairwise_cross = net$pairwise_cross, pairwise_cont = net$pairwise_cont
   )
   est_blocks = extract_bgms_blocks(fit, net)
 
@@ -168,8 +168,8 @@ test_that("estimate-simulate-re-estimate cycle: cor > 0.7 (mixed MRF)", {
     chains = 1, seed = 801
   )
 
-  pw1 = as.vector(fit1$posterior_mean_pairwise)
-  pw2 = as.vector(fit2$posterior_mean_pairwise)
+  pw1 = as.vector(fit1$posterior_mean_associations)
+  pw2 = as.vector(fit2$posterior_mean_associations)
 
   r = cor(pw1, pw2)
   expect_gt(r, 0.7,

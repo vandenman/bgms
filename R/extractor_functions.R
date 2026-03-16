@@ -443,6 +443,12 @@ extract_pairwise_interactions.bgms = function(bgms_object) {
     }
 
     dimnames(mat) = list(paste0("iter", seq_len(nrow(mat))), edge_names)
+
+    # GGM raw samples are on precision scale; convert to association scale
+    if(isTRUE(arguments$is_continuous)) {
+      mat = -0.5 * mat
+    }
+
     return(mat)
   }
 
@@ -515,7 +521,7 @@ extract_pairwise_interactions.bgmCompare = function(bgms_object) {
 #' @return The structure depends on the model type:
 #'   \describe{
 #'     \item{GGM (bgms)}{`NULL` (invisibly). GGM models have no main effects;
-#'       the precision matrix diagonal is on `coef(fit)$pairwise`.}
+#'       use [extract_precision()] to obtain the precision matrix.}
 #'     \item{OMRF (bgms)}{A numeric matrix with one row per variable and one
 #'       column per category threshold, containing posterior means. Columns
 #'       beyond the number of categories for a variable are `NA`.}
@@ -550,7 +556,7 @@ extract_main_effects = function(bgms_object) {
 extract_main_effects.bgms = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
-  # GGM: no main effects; precision diagonal is on the pairwise matrix
+  # GGM: no main effects; use extract_precision() for the precision matrix
   if(isTRUE(arguments$is_continuous)) {
     return(invisible(NULL))
   }
@@ -658,7 +664,7 @@ extract_main_effects.bgmCompare = function(bgms_object) {
 #' `r lifecycle::badge("deprecated")`
 #'
 #' `extract_category_thresholds()` was renamed to [extract_main_effects()] to
-#' reflect that main effects include continuous means and precisions
+#' reflect that main effects include continuous means and precision diagonal
 #' (mixed MRF), not only category thresholds.
 #'
 #' @param bgms_object A fitted model object of class `bgms` (from [bgm()])
@@ -1124,4 +1130,199 @@ extract_ess.bgmCompare = function(bgms_object) {
   }
 
   return(result)
+}
+
+
+#' Extract Posterior Mean Precision Matrix
+#'
+#' @title Extract Posterior Mean Precision Matrix
+#'
+#' @description
+#' Retrieves the posterior mean precision matrix from a model fitted with
+#' [bgm()]. For GGM models this is the full precision matrix. For
+#' mixed MRF models this is the precision matrix of the continuous
+#' (Gaussian) block. OMRF models have no precision matrix and return `NULL`.
+#'
+#' For mixed MRF models the precision matrix is reconstructed from the
+#' internal association-scale parameterization.
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()]).
+#'
+#' @return A named numeric matrix containing the posterior mean precision
+#'   matrix, or `NULL` for OMRF models.
+#'   \describe{
+#'     \item{GGM}{A symmetric matrix with one row and column per variable.}
+#'     \item{Mixed MRF}{A symmetric matrix with one row and column per
+#'       continuous variable.}
+#'     \item{OMRF}{`NULL` (invisibly).}
+#'   }
+#'
+#' @examples
+#' \donttest{
+#' fit = bgm(
+#'   x = Wenchuan[, 1:3],
+#'   variable_type = rep("continuous", 3)
+#' )
+#' extract_precision(fit)
+#' }
+#'
+#' @seealso [bgm()], [coef.bgms()], [extract_partial_correlations()]
+#' @family extractors
+#' @export
+extract_precision = function(bgms_object) {
+  UseMethod("extract_precision")
+}
+
+#' @inheritParams extract_precision
+#' @exportS3Method
+#' @noRd
+extract_precision.bgms = function(bgms_object) {
+  arguments = extract_arguments(bgms_object)
+
+  # OMRF: no precision matrix
+  if(!isTRUE(arguments$is_continuous) && !isTRUE(arguments$is_mixed)) {
+    return(invisible(NULL))
+  }
+
+  rv = bgms_object$posterior_mean_residual_variance
+  associations = bgms_object$posterior_mean_associations
+
+  if(isTRUE(arguments$is_mixed)) {
+    # Mixed MRF: extract the q x q continuous block, convert to precision
+    cont_idx = arguments$continuous_indices
+    cont_names = arguments$data_columnnames_continuous
+    cont_block = associations[cont_idx, cont_idx]
+    precision = -2 * cont_block
+    diag(precision) = 1 / rv
+    dimnames(precision) = list(cont_names, cont_names)
+    return(precision)
+  }
+
+  # GGM: associations are stored at half precision scale; convert to precision
+  precision = -2 * associations
+  diag(precision) = 1 / rv
+  return(precision)
+}
+
+
+#' Extract Posterior Mean Partial Correlations
+#'
+#' @title Extract Posterior Mean Partial Correlations
+#'
+#' @description
+#' Computes the posterior mean partial correlation matrix from a model fitted
+#' with [bgm()]. For GGM models this is the full matrix. For mixed
+#' MRF models this is the matrix for the continuous block. OMRF models
+#' have no partial correlations and return `NULL`.
+#'
+#' Partial correlations are computed from the precision matrix as
+#' \eqn{\rho_{ij} = -\Theta_{ij} / \sqrt{\Theta_{ii} \Theta_{jj}}}{rho_ij = -Theta_ij / sqrt(Theta_ii * Theta_jj)}.
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()]).
+#'
+#' @return A named numeric matrix containing posterior mean partial
+#'   correlations, or `NULL` for OMRF models.
+#'   \describe{
+#'     \item{GGM}{A symmetric matrix with ones on the diagonal and one
+#'       row and column per variable.}
+#'     \item{Mixed MRF}{A symmetric matrix with ones on the diagonal and
+#'       one row and column per continuous variable.}
+#'     \item{OMRF}{`NULL` (invisibly).}
+#'   }
+#'
+#' @examples
+#' \donttest{
+#' fit = bgm(
+#'   x = Wenchuan[, 1:3],
+#'   variable_type = rep("continuous", 3)
+#' )
+#' extract_partial_correlations(fit)
+#' }
+#'
+#' @seealso [bgm()], [extract_precision()]
+#' @family extractors
+#' @export
+extract_partial_correlations = function(bgms_object) {
+  UseMethod("extract_partial_correlations")
+}
+
+#' @inheritParams extract_partial_correlations
+#' @exportS3Method
+#' @noRd
+extract_partial_correlations.bgms = function(bgms_object) {
+  arguments = extract_arguments(bgms_object)
+
+  # OMRF: no partial correlations
+  if(!isTRUE(arguments$is_continuous) && !isTRUE(arguments$is_mixed)) {
+    return(invisible(NULL))
+  }
+
+  # Derive from precision: rho_ij = -Theta_ij / sqrt(Theta_ii * Theta_jj)
+  precision = extract_precision(bgms_object)
+  d = sqrt(diag(precision))
+  partial_corr = -precision / outer(d, d)
+  diag(partial_corr) = 1
+  return(partial_corr)
+}
+
+
+#' Extract Posterior Mean Log-Odds (Pairwise Interactions)
+#'
+#' @title Extract Posterior Mean Log-Odds
+#'
+#' @description
+#' Retrieves the posterior mean pairwise interaction matrix for discrete
+#' variables from a model fitted with [bgm()]. These are the log-odds
+#' parameters of the discrete (Markov random field) block. GGM models have
+#' no discrete variables and return `NULL`.
+#'
+#' @param bgms_object A fitted model object of class `bgms` (from [bgm()]).
+#'
+#' @return A named numeric matrix of posterior mean log-odds interactions, or
+#'   `NULL` for GGM models.
+#'   \describe{
+#'     \item{OMRF}{A symmetric matrix with zero diagonal and one row and
+#'       column per variable.}
+#'     \item{Mixed MRF}{A symmetric matrix with zero diagonal and one row
+#'       and column per discrete variable.}
+#'     \item{GGM}{`NULL` (invisibly).}
+#'   }
+#'
+#' @examples
+#' \donttest{
+#' fit = bgm(x = Wenchuan[, 1:3])
+#' extract_log_odds(fit)
+#' }
+#'
+#' @seealso [bgm()], [extract_pairwise_interactions()], [extract_precision()]
+#' @family extractors
+#' @export
+extract_log_odds = function(bgms_object) {
+  UseMethod("extract_log_odds")
+}
+
+#' @inheritParams extract_log_odds
+#' @exportS3Method
+#' @noRd
+extract_log_odds.bgms = function(bgms_object) {
+  arguments = extract_arguments(bgms_object)
+
+  # GGM: no discrete variables
+  if(isTRUE(arguments$is_continuous)) {
+    return(invisible(NULL))
+  }
+
+  associations = bgms_object$posterior_mean_associations
+
+  if(isTRUE(arguments$is_mixed)) {
+    # Mixed MRF: extract the p x p discrete block, convert to log-odds
+    disc_idx = arguments$discrete_indices
+    disc_names = arguments$data_columnnames_discrete
+    log_odds = 2 * associations[disc_idx, disc_idx]
+    dimnames(log_odds) = list(disc_names, disc_names)
+    return(log_odds)
+  }
+
+  # OMRF: log adjacent-category odds ratio = 2 * association
+  return(2 * associations)
 }

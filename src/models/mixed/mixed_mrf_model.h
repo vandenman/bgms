@@ -13,8 +13,16 @@
  * Joint model for p discrete (ordinal or Blume-Capel) variables x and
  * q continuous variables y.  The joint density is:
  *
- *   log f(x, y) ∝ Σ_s μ_{x,s}(x_s) + x' Kxx x
- *                  - ½ (y - μ_y)' Kyy (y - μ_y) + 2 x' Kxy y
+ *   log f(x, y) ∝ Σ_s μ_{x,s}(x_s) + x' A_xx x + y' A_yy y + 2 x' A_xy y
+ *
+ * All three interaction blocks (A_xx, A_yy, A_xy) enter the density at
+ * the same scale, so a Cauchy(0, scale) prior has the same meaning for
+ * every block.
+ *
+ * A_yy is stored as a negative semi-definite matrix with negative diagonal.
+ * The positive-definite precision matrix is Precision = -2 A_yy.
+ * Internally the Cholesky decomposition and covariance
+ * cache operate on Precision.
  *
  * Supports both conditional and marginal pseudo-likelihood, with and
  * without edge selection via spike-and-slab priors.
@@ -290,7 +298,7 @@ private:
     arma::mat main_effects_discrete_;                     ///< p x max_cats main effects (thresholds or alpha/beta)
     arma::vec main_effects_continuous_;                     ///< q-vector continuous means
     arma::mat pairwise_effects_discrete_;                     ///< p x p discrete interactions (symmetric, zero diag)
-    arma::mat pairwise_effects_continuous_;                     ///< q x q SPD precision matrix
+    arma::mat pairwise_effects_continuous_;                     ///< q x q continuous interaction matrix (negative-definite)
     arma::mat pairwise_effects_cross_;                     ///< p x q cross-type interactions
 
     // =========================================================================
@@ -329,22 +337,22 @@ private:
     // Cached quantities
     // =========================================================================
 
-    arma::mat cholesky_of_precision_;       ///< q x q upper Cholesky R (K_yy = R'R)
+    arma::mat cholesky_of_precision_;       ///< q x q upper Cholesky R (Precision = R'R)
     arma::mat inv_cholesky_of_precision_;   ///< q x q R^{-1} (upper triangular)
-    arma::mat covariance_continuous_;       ///< q x q K_yy^{-1} = R^{-1} R^{-T}
-    double log_det_precision_;              ///< log|K_yy|
-    arma::mat Theta_;                       ///< p x p marginal PL interaction matrix
-    arma::mat conditional_mean_;            ///< n x q conditional mean mu_y + 2 X K_xy Sigma_yy
+    arma::mat covariance_continuous_;       ///< q x q Σ = Precision^{-1}
+    double log_det_precision_;              ///< log|Precision|
+    arma::mat marginal_interactions_;                       ///< p x p marginal PL interaction matrix
+    arma::mat conditional_mean_;            ///< n x q conditional mean
 
     // Rank-1 Cholesky update workspace
-    std::array<double, 6> kyy_constants_{};  ///< Reparameterization constants
+    std::array<double, 6> cont_constants_{};  ///< Reparameterization constants
     arma::mat precision_proposal_;        ///< q x q scratch for proposed precision
-    arma::vec kyy_v1_ = {0, -1};             ///< Rank-2 decomposition helper 1
-    arma::vec kyy_v2_ = {0, 0};              ///< Rank-2 decomposition helper 2
-    arma::vec kyy_vf1_;                      ///< q-vector, zeroed between uses
-    arma::vec kyy_vf2_;                      ///< q-vector, zeroed between uses
-    arma::vec kyy_u1_;                       ///< q-vector workspace
-    arma::vec kyy_u2_;                       ///< q-vector workspace
+    arma::vec cont_v1_ = {0, -1};             ///< Rank-2 decomposition helper 1
+    arma::vec cont_v2_ = {0, 0};              ///< Rank-2 decomposition helper 2
+    arma::vec cont_vf1_;                      ///< q-vector, zeroed between uses
+    arma::vec cont_vf2_;                      ///< q-vector, zeroed between uses
+    arma::vec cont_u1_;                       ///< q-vector workspace
+    arma::vec cont_u2_;                       ///< q-vector workspace
 
     // =========================================================================
     // Gradient cache (populated by ensure_gradient_cache)
@@ -352,8 +360,8 @@ private:
 
     arma::mat discrete_observations_dbl_t_; ///< p x n transpose (BLAS gradient)
     arma::vec grad_obs_cache_;          ///< Cached observed-data gradient component
-    arma::imat kxx_index_cache_;        ///< p x p map from (i,j) to gradient index
-    arma::imat kxy_index_cache_;        ///< p x q map from (i,j) to gradient index
+    arma::imat disc_index_cache_;        ///< p x p map from (i,j) to gradient index
+    arma::imat cross_index_cache_;        ///< p x q map from (i,j) to gradient index
     int main_effects_continuous_grad_offset_ = 0;           ///< Offset of main_effects_continuous block in gradient vector
     bool gradient_cache_valid_ = false; ///< Whether gradient cache is current
 
@@ -388,8 +396,8 @@ private:
     /** Recompute cholesky_of_precision_, inv_cholesky_of_precision_, covariance_continuous_, log_det_precision_ from pairwise_effects_continuous_. */
     void recompute_pairwise_effects_continuous_decomposition();
 
-    /** Recompute Theta_ from pairwise_effects_discrete_, pairwise_effects_cross_, covariance_continuous_ (marginal PL only). */
-    void recompute_Theta();
+    /** Recompute marginal_interactions_ from pairwise_effects_discrete_, pairwise_effects_cross_, covariance_continuous_ (marginal PL only). */
+    void recompute_marginal_interactions();
 
     // =========================================================================
     // Gradient helpers (implemented in mixed_mrf_gradient.cpp)
@@ -417,7 +425,7 @@ private:
     /** Conditional OMRF pseudolikelihood for discrete variable s, summed over all n. */
     double log_conditional_omrf(int s) const;
 
-    /** Marginal OMRF pseudolikelihood for discrete variable s, using Theta_. */
+    /** Marginal OMRF pseudolikelihood for discrete variable s, using marginal_interactions_. */
     double log_marginal_omrf(int s) const;
 
     /** Conditional GGM log-likelihood: log f(y | x), using cached decomposition. */
@@ -430,7 +438,7 @@ private:
     // --- Rank-1 precision proposal helpers (permutation-free) ---
 
     // Extract reparameterization constants for the (i,j) off-diagonal precision update.
-    // Populates kyy_constants_[0..5] from cholesky_of_precision_ and covariance_continuous_.
+    // Populates cont_constants_[0..5] from cholesky_of_precision_ and covariance_continuous_.
     void get_precision_constants(int i, int j);
 
     // Constrained diagonal value for a proposed off-diagonal precision element.

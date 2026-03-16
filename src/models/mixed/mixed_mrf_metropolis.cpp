@@ -114,26 +114,27 @@ void MixedMRFModel::update_pairwise_discrete(int i, int j, int iteration) {
     double proposed = rnorm(rng_, current_val, proposal_sd_pairwise_discrete_(i, j));
 
     // Current log-posterior
+    const double disc_scale = pairwise_scale_;
     double ll_curr, ll_prop;
     if(use_marginal_pl_) {
         ll_curr = log_marginal_omrf(i) + log_marginal_omrf(j)
-                + R::dcauchy(current_val, 0.0, pairwise_scale_, true);
+                + R::dcauchy(current_val, 0.0, disc_scale, true);
 
         pairwise_effects_discrete_(i, j) = proposed;
         pairwise_effects_discrete_(j, i) = proposed;
-        recompute_Theta();
+        recompute_marginal_interactions();
 
         ll_prop = log_marginal_omrf(i) + log_marginal_omrf(j)
-                + R::dcauchy(proposed, 0.0, pairwise_scale_, true);
+                + R::dcauchy(proposed, 0.0, disc_scale, true);
     } else {
         ll_curr = log_conditional_omrf(i) + log_conditional_omrf(j)
-                + R::dcauchy(current_val, 0.0, pairwise_scale_, true);
+                + R::dcauchy(current_val, 0.0, disc_scale, true);
 
         pairwise_effects_discrete_(i, j) = proposed;
         pairwise_effects_discrete_(j, i) = proposed;
 
         ll_prop = log_conditional_omrf(i) + log_conditional_omrf(j)
-                + R::dcauchy(proposed, 0.0, pairwise_scale_, true);
+                + R::dcauchy(proposed, 0.0, disc_scale, true);
     }
 
     double ln_alpha = ll_prop - ll_curr;
@@ -141,7 +142,7 @@ void MixedMRFModel::update_pairwise_discrete(int i, int j, int iteration) {
     if(MY_LOG(runif(rng_)) >= ln_alpha) {
         pairwise_effects_discrete_(i, j) = current_val;  // reject
         pairwise_effects_discrete_(j, i) = current_val;
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 
     if(iteration >= 1 && iteration < total_warmup_) {
@@ -156,7 +157,11 @@ void MixedMRFModel::update_pairwise_discrete(int i, int j, int iteration) {
 // Rank-1 precision proposal helpers (permutation-free)
 // =============================================================================
 // Direct analogs of GGMModel::get_constants / constrained_diagonal,
-// operating on pairwise_effects_continuous_, cholesky_of_precision_, and covariance_continuous_.
+// operating on precision = -2 * pairwise_effects_continuous_,
+// cholesky_of_precision_, and covariance_continuous_.
+//
+// All constants and proposals live in precision space. Conversion to/from
+// pairwise_effects_continuous_ happens at the outer call sites.
 // =============================================================================
 
 void MixedMRFModel::get_precision_constants(int i, int j) {
@@ -174,21 +179,25 @@ void MixedMRFModel::get_precision_constants(int i, int j) {
     );
     double Phi_q1q1 = MY_EXP((log_adj_jj - log_abs_inv_sub_jj) / 2);
 
-    kyy_constants_[0] = Phi_q1q;
-    kyy_constants_[1] = Phi_q1q1;
-    kyy_constants_[2] = pairwise_effects_continuous_(i, j) - Phi_q1q * Phi_q1q1;
-    kyy_constants_[3] = Phi_q1q1;
-    kyy_constants_[4] = pairwise_effects_continuous_(j, j) - Phi_q1q * Phi_q1q;
-    kyy_constants_[5] = kyy_constants_[4] +
-        kyy_constants_[2] * kyy_constants_[2] / (kyy_constants_[3] * kyy_constants_[3]);
+    // Read precision = -2 * pairwise_effects_continuous_ for constants extraction
+    double precision_ij = -2.0 * pairwise_effects_continuous_(i, j);
+    double precision_jj = -2.0 * pairwise_effects_continuous_(j, j);
+
+    cont_constants_[0] = Phi_q1q;
+    cont_constants_[1] = Phi_q1q1;
+    cont_constants_[2] = precision_ij - Phi_q1q * Phi_q1q1;
+    cont_constants_[3] = Phi_q1q1;
+    cont_constants_[4] = precision_jj - Phi_q1q * Phi_q1q;
+    cont_constants_[5] = cont_constants_[4] +
+        cont_constants_[2] * cont_constants_[2] / (cont_constants_[3] * cont_constants_[3]);
 }
 
 double MixedMRFModel::precision_constrained_diagonal(double x) const {
     if(x == 0.0) {
-        return kyy_constants_[5];
+        return cont_constants_[5];
     } else {
-        double t = (x - kyy_constants_[2]) / kyy_constants_[3];
-        return kyy_constants_[4] + t * t;
+        double t = (x - cont_constants_[2]) / cont_constants_[3];
+        return cont_constants_[4] + t * t;
     }
 }
 
@@ -208,11 +217,14 @@ double MixedMRFModel::log_ggm_ratio_edge(int i, int j) const {
     size_t ui = static_cast<size_t>(i);
     size_t uj = static_cast<size_t>(j);
 
+    // Current precision (positive-definite)
+    arma::mat precision_curr = -2.0 * pairwise_effects_continuous_;
+
     // --- Log-determinant ratio via matrix determinant lemma ---
     // ΔΩ has 3 nonzero entries: (i,j), (j,i), (j,j).
     // Ui = old - new off-diag, Uj = (old - new diag) / 2
-    double Ui = pairwise_effects_continuous_(ui, uj) - precision_proposal_(ui, uj);
-    double Uj = (pairwise_effects_continuous_(uj, uj) - precision_proposal_(uj, uj)) / 2.0;
+    double Ui = precision_curr(ui, uj) - precision_proposal_(ui, uj);
+    double Uj = (precision_curr(uj, uj) - precision_proposal_(uj, uj)) / 2.0;
 
     double cc11 = covariance_continuous_(uj, uj);
     double cc12 = 1.0 - (covariance_continuous_(ui, uj) * Ui +
@@ -252,7 +264,7 @@ double MixedMRFModel::log_ggm_ratio_edge(int i, int j) const {
     arma::mat cov_prop = covariance_continuous_ - w1 * s2.t() - w2 * s1.t();
 
     // --- Proposed conditional mean ---
-    // M' = μ_y' + 2 X K_xy Σ'
+    // M' = μ_y' + 2 X A_xy Σ'
     arma::mat cond_mean_prop = arma::repmat(main_effects_continuous_.t(), n_, 1) +
                                2.0 * discrete_observations_dbl_ * pairwise_effects_cross_ * cov_prop;
 
@@ -260,7 +272,7 @@ double MixedMRFModel::log_ggm_ratio_edge(int i, int j) const {
     arma::mat D_curr = continuous_observations_ - conditional_mean_;
     arma::mat D_prop = continuous_observations_ - cond_mean_prop;
 
-    double quad_curr = arma::accu((D_curr * pairwise_effects_continuous_) % D_curr);
+    double quad_curr = arma::accu((D_curr * precision_curr) % D_curr);
     double quad_prop = arma::accu((D_prop * precision_proposal_) % D_prop);
 
     double n = static_cast<double>(n_);
@@ -278,8 +290,11 @@ double MixedMRFModel::log_ggm_ratio_edge(int i, int j) const {
 double MixedMRFModel::log_ggm_ratio_diag(int i) const {
     size_t ui = static_cast<size_t>(i);
 
+    // Current precision diagonal
+    double precision_ii = -2.0 * pairwise_effects_continuous_(ui, ui);
+
     // --- Log-determinant ratio (rank-1) ---
-    double Uj = (pairwise_effects_continuous_(ui, ui) - precision_proposal_(ui, ui)) / 2.0;
+    double Uj = (precision_ii - precision_proposal_(ui, ui)) / 2.0;
 
     double cc11 = covariance_continuous_(ui, ui);
     double cc12 = 1.0 - covariance_continuous_(ui, ui) * Uj;
@@ -301,7 +316,9 @@ double MixedMRFModel::log_ggm_ratio_diag(int i) const {
     arma::mat D_curr = continuous_observations_ - conditional_mean_;
     arma::mat D_prop = continuous_observations_ - cond_mean_prop;
 
-    double quad_curr = arma::accu((D_curr * pairwise_effects_continuous_) % D_curr);
+    // Precision for quadratic form: only diagonal changed
+    arma::mat precision_curr = -2.0 * pairwise_effects_continuous_;
+    double quad_curr = arma::accu((D_curr * precision_curr) % D_curr);
     double quad_prop = arma::accu((D_prop * precision_proposal_) % D_prop);
 
     double n = static_cast<double>(n_);
@@ -320,28 +337,28 @@ double MixedMRFModel::log_ggm_ratio_diag(int i) const {
 void MixedMRFModel::cholesky_update_after_precision_edge(
     double old_ij, double old_jj, int i, int j)
 {
-    kyy_v2_[0] = old_ij - precision_proposal_(i, j);
-    kyy_v2_[1] = (old_jj - precision_proposal_(j, j)) / 2.0;
+    cont_v2_[0] = old_ij - precision_proposal_(i, j);
+    cont_v2_[1] = (old_jj - precision_proposal_(j, j)) / 2.0;
 
-    kyy_vf1_[i] = kyy_v1_[0];   // 0
-    kyy_vf1_[j] = kyy_v1_[1];   // -1
-    kyy_vf2_[i] = kyy_v2_[0];
-    kyy_vf2_[j] = kyy_v2_[1];
+    cont_vf1_[i] = cont_v1_[0];   // 0
+    cont_vf1_[j] = cont_v1_[1];   // -1
+    cont_vf2_[i] = cont_v2_[0];
+    cont_vf2_[j] = cont_v2_[1];
 
-    kyy_u1_ = (kyy_vf1_ + kyy_vf2_) / std::sqrt(2.0);
-    kyy_u2_ = (kyy_vf1_ - kyy_vf2_) / std::sqrt(2.0);
+    cont_u1_ = (cont_vf1_ + cont_vf2_) / std::sqrt(2.0);
+    cont_u2_ = (cont_vf1_ - cont_vf2_) / std::sqrt(2.0);
 
-    cholesky_update(cholesky_of_precision_, kyy_u1_);
-    cholesky_downdate(cholesky_of_precision_, kyy_u2_);
+    cholesky_update(cholesky_of_precision_, cont_u1_);
+    cholesky_downdate(cholesky_of_precision_, cont_u2_);
 
     arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
     covariance_continuous_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
     log_det_precision_ = cholesky_helpers::get_log_det(cholesky_of_precision_);
 
-    kyy_vf1_[i] = 0.0;
-    kyy_vf1_[j] = 0.0;
-    kyy_vf2_[i] = 0.0;
-    kyy_vf2_[j] = 0.0;
+    cont_vf1_[i] = 0.0;
+    cont_vf1_[j] = 0.0;
+    cont_vf2_[i] = 0.0;
+    cont_vf2_[j] = 0.0;
 }
 
 
@@ -355,18 +372,18 @@ void MixedMRFModel::cholesky_update_after_precision_diag(double old_ii, int i) {
     double delta = old_ii - precision_proposal_(i, i);
     bool downdate = delta > 0.0;
 
-    kyy_vf1_[i] = std::sqrt(std::abs(delta));
+    cont_vf1_[i] = std::sqrt(std::abs(delta));
 
     if(downdate)
-        cholesky_downdate(cholesky_of_precision_, kyy_vf1_);
+        cholesky_downdate(cholesky_of_precision_, cont_vf1_);
     else
-        cholesky_update(cholesky_of_precision_, kyy_vf1_);
+        cholesky_update(cholesky_of_precision_, cont_vf1_);
 
     arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
     covariance_continuous_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
     log_det_precision_ = cholesky_helpers::get_log_det(cholesky_of_precision_);
 
-    kyy_vf1_[i] = 0.0;
+    cont_vf1_[i] = 0.0;
 }
 
 
@@ -381,59 +398,78 @@ void MixedMRFModel::cholesky_update_after_precision_diag(double old_ii, int i) {
 //   4. Evaluate rank-2 log-likelihood ratio
 //   5. On accept: rank-1 Cholesky update
 //
-// Prior: Cauchy(0, pairwise_scale_) on off-diag, Gamma(1, 1) on diagonal.
+// Constants and proposals live in precision space.
+// Prior: Cauchy(0, pairwise_scale_) on off-diagonal,
+//        Gamma(1, 1) on negative diagonal.
+// Storage: pairwise_effects_continuous_ = -1/2 * precision.
 // =============================================================================
 
 void MixedMRFModel::update_pairwise_effects_continuous_offdiag(int i, int j, int iteration) {
     get_precision_constants(i, j);
 
-    double phi_curr = kyy_constants_[0];  // Phi_q1q
+    double phi_curr = cont_constants_[0];  // Phi_q1q
     double phi_prop = rnorm(rng_, phi_curr, proposal_sd_pairwise_continuous_(i, j));
 
-    double omega_prop_ij = kyy_constants_[2] + kyy_constants_[3] * phi_prop;
-    double omega_prop_jj = precision_constrained_diagonal(omega_prop_ij);
-    double diag_curr = pairwise_effects_continuous_(j, j);
+    // Propose in precision space
+    double theta_prop_ij = cont_constants_[2] + cont_constants_[3] * phi_prop;
+    double theta_prop_jj = precision_constrained_diagonal(theta_prop_ij);
 
-    // Fill proposal matrix (only the 3 changed entries matter)
-    precision_proposal_ = pairwise_effects_continuous_;
-    precision_proposal_(i, j) = omega_prop_ij;
-    precision_proposal_(j, i) = omega_prop_ij;
-    precision_proposal_(j, j) = omega_prop_jj;
+    // Current precision values
+    double theta_curr_ij = -2.0 * pairwise_effects_continuous_(i, j);
+    double theta_curr_jj = -2.0 * pairwise_effects_continuous_(j, j);
+
+    // Fill proposal matrix in precision space
+    precision_proposal_ = -2.0 * pairwise_effects_continuous_;
+    precision_proposal_(i, j) = theta_prop_ij;
+    precision_proposal_(j, i) = theta_prop_ij;
+    precision_proposal_(j, j) = theta_prop_jj;
 
     double ln_alpha = log_ggm_ratio_edge(i, j);
 
-    // Marginal mode: add OMRF ratio with proposed Theta
+    // Marginal mode: add OMRF ratio with proposed continuous interactions
     if(use_marginal_pl_) {
         for(size_t s = 0; s < p_; ++s)
             ln_alpha -= log_marginal_omrf(s);
 
-        arma::mat Theta_saved = Theta_;
+        arma::mat marginal_saved = marginal_interactions_;
         arma::mat pairwise_effects_continuous_saved = pairwise_effects_continuous_;
-        pairwise_effects_continuous_ = precision_proposal_;
-        recompute_Theta();
+        // Temporarily set continuous interactions to proposed value
+        pairwise_effects_continuous_(i, j) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, i) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, j) = -0.5 * theta_prop_jj;
+        recompute_marginal_interactions();
         for(size_t s = 0; s < p_; ++s)
             ln_alpha += log_marginal_omrf(s);
         pairwise_effects_continuous_ = pairwise_effects_continuous_saved;
-        Theta_ = std::move(Theta_saved);
+        marginal_interactions_ = std::move(marginal_saved);
     }
 
-    // Prior ratio: Cauchy on off-diag + Gamma(1,1) on diagonal
-    ln_alpha += R::dcauchy(omega_prop_ij, 0.0, pairwise_scale_, true);
-    ln_alpha -= R::dcauchy(pairwise_effects_continuous_(i, j), 0.0, pairwise_scale_, true);
-    ln_alpha += R::dgamma(omega_prop_jj, 1.0, 1.0, true);
-    ln_alpha -= R::dgamma(diag_curr, 1.0, 1.0, true);
+    // Prior ratio:
+    //   Cauchy(0, scale) on off-diagonal = -1/2 * precision_ij
+    //   Gamma(1, 1) on negative diagonal = 1/2 * precision_jj
+    double cont_prop_ij = -0.5 * theta_prop_ij;
+    double cont_curr_ij = pairwise_effects_continuous_(i, j);
+    double neg_cont_prop_jj = 0.5 * theta_prop_jj;
+    double neg_cont_curr_jj = -pairwise_effects_continuous_(j, j);
+
+    ln_alpha += R::dcauchy(cont_prop_ij, 0.0, pairwise_scale_, true);
+    ln_alpha -= R::dcauchy(cont_curr_ij, 0.0, pairwise_scale_, true);
+    ln_alpha += R::dgamma(neg_cont_prop_jj, 1.0, 1.0, true);
+    ln_alpha -= R::dgamma(neg_cont_curr_jj, 1.0, 1.0, true);
 
     if(MY_LOG(runif(rng_)) < ln_alpha) {
-        double old_ij = pairwise_effects_continuous_(i, j);
-        double old_jj = pairwise_effects_continuous_(j, j);
+        // Pass old precision values to Cholesky update
+        double old_theta_ij = theta_curr_ij;
+        double old_theta_jj = theta_curr_jj;
 
-        pairwise_effects_continuous_(i, j) = omega_prop_ij;
-        pairwise_effects_continuous_(j, i) = omega_prop_ij;
-        pairwise_effects_continuous_(j, j) = omega_prop_jj;
+        // Store: pairwise_effects_continuous_ = -1/2 * precision
+        pairwise_effects_continuous_(i, j) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, i) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, j) = -0.5 * theta_prop_jj;
 
-        cholesky_update_after_precision_edge(old_ij, old_jj, i, j);
+        cholesky_update_after_precision_edge(old_theta_ij, old_theta_jj, i, j);
         recompute_conditional_mean();
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 
     if(iteration >= 1 && iteration < total_warmup_) {
@@ -448,9 +484,9 @@ void MixedMRFModel::update_pairwise_effects_continuous_offdiag(int i, int j, int
 // update_pairwise_effects_continuous_diag
 // =============================================================================
 // MH update for one diagonal element of the precision matrix.
-// Proposes on the log-Cholesky scale to ensure positivity.
+// Proposes on the log-Cholesky scale to ensure positivity of precision.
 // Uses rank-1 Cholesky update on accept.
-// Prior: Gamma(1, 1) on the diagonal element + Jacobian for log-scale proposal.
+// Prior: Gamma(1, 1) on negative diagonal + Jacobian for log-scale proposal.
 // =============================================================================
 
 void MixedMRFModel::update_pairwise_effects_continuous_diag(int i, int iteration) {
@@ -460,42 +496,52 @@ void MixedMRFModel::update_pairwise_effects_continuous_diag(int i, int iteration
     double theta_curr = (logdet - logdet_sub_ii) / 2.0;
     double theta_prop = rnorm(rng_, theta_curr, proposal_sd_pairwise_continuous_(i, i));
 
-    precision_proposal_ = pairwise_effects_continuous_;
-    precision_proposal_(i, i) = pairwise_effects_continuous_(i, i)
+    // Current precision diagonal
+    double theta_ii_curr = -2.0 * pairwise_effects_continuous_(i, i);
+    double theta_ii_prop = theta_ii_curr
         - MY_EXP(theta_curr) * MY_EXP(theta_curr)
         + MY_EXP(theta_prop) * MY_EXP(theta_prop);
 
+    // Fill proposal in precision space
+    precision_proposal_ = -2.0 * pairwise_effects_continuous_;
+    precision_proposal_(i, i) = theta_ii_prop;
+
     double ln_alpha = log_ggm_ratio_diag(i);
 
-    // Marginal mode: add OMRF ratio with proposed Theta
+    // Marginal mode: add OMRF ratio with proposed continuous interactions
     if(use_marginal_pl_) {
         for(size_t s = 0; s < p_; ++s)
             ln_alpha -= log_marginal_omrf(s);
 
-        arma::mat Theta_saved = Theta_;
-        arma::mat pairwise_effects_continuous_saved = pairwise_effects_continuous_;
-        pairwise_effects_continuous_ = precision_proposal_;
-        recompute_Theta();
+        arma::mat marginal_saved = marginal_interactions_;
+        double cont_saved = pairwise_effects_continuous_(i, i);
+        pairwise_effects_continuous_(i, i) = -0.5 * theta_ii_prop;
+        recompute_marginal_interactions();
         for(size_t s = 0; s < p_; ++s)
             ln_alpha += log_marginal_omrf(s);
-        pairwise_effects_continuous_ = pairwise_effects_continuous_saved;
-        Theta_ = std::move(Theta_saved);
+        pairwise_effects_continuous_(i, i) = cont_saved;
+        marginal_interactions_ = std::move(marginal_saved);
     }
 
-    // Prior ratio: Gamma(1,1) on diagonal
-    ln_alpha += R::dgamma(precision_proposal_(i, i), 1.0, 1.0, true);
-    ln_alpha -= R::dgamma(pairwise_effects_continuous_(i, i), 1.0, 1.0, true);
+    // Prior ratio: Gamma(1,1) on negative diagonal
+    double neg_cont_prop = 0.5 * theta_ii_prop;
+    double neg_cont_curr = -pairwise_effects_continuous_(i, i);
+    ln_alpha += R::dgamma(neg_cont_prop, 1.0, 1.0, true);
+    ln_alpha -= R::dgamma(neg_cont_curr, 1.0, 1.0, true);
 
     // Jacobian for log-scale proposal
     ln_alpha += theta_prop - theta_curr;
 
     if(MY_LOG(runif(rng_)) < ln_alpha) {
-        double old_ii = pairwise_effects_continuous_(i, i);
-        pairwise_effects_continuous_(i, i) = precision_proposal_(i, i);
+        // Pass old precision value to Cholesky update
+        double old_theta_ii = theta_ii_curr;
 
-        cholesky_update_after_precision_diag(old_ii, i);
+        // Store: pairwise_effects_continuous_ = -1/2 * precision
+        pairwise_effects_continuous_(i, i) = -0.5 * theta_ii_prop;
+
+        cholesky_update_after_precision_diag(old_theta_ii, i);
         recompute_conditional_mean();
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 
     if(iteration >= 1 && iteration < total_warmup_) {
@@ -530,11 +576,11 @@ void MixedMRFModel::update_pairwise_cross(int i, int j, int iteration) {
 
     // Set proposed value and refresh caches
     arma::mat cond_mean_saved = conditional_mean_;
-    arma::mat Theta_saved;
-    if(use_marginal_pl_) Theta_saved = Theta_;
+    arma::mat marginal_saved;
+    if(use_marginal_pl_) marginal_saved = marginal_interactions_;
     pairwise_effects_cross_(i, j) = proposed;
     recompute_conditional_mean();
-    if(use_marginal_pl_) recompute_Theta();
+    if(use_marginal_pl_) recompute_marginal_interactions();
 
     double ll_prop = log_conditional_ggm()
                    + R::dcauchy(proposed, 0.0, pairwise_scale_, true);
@@ -550,7 +596,7 @@ void MixedMRFModel::update_pairwise_cross(int i, int j, int iteration) {
     if(MY_LOG(runif(rng_)) >= ln_alpha) {
         pairwise_effects_cross_(i, j) = current_val;  // reject
         conditional_mean_ = std::move(cond_mean_saved);
-        if(use_marginal_pl_) Theta_ = std::move(Theta_saved);
+        if(use_marginal_pl_) marginal_interactions_ = std::move(marginal_saved);
     }
 
     if(iteration >= 1 && iteration < total_warmup_) {
@@ -590,14 +636,14 @@ void MixedMRFModel::update_edge_indicator_discrete(int i, int j) {
 
         pairwise_effects_discrete_(i, j) = k_prop;
         pairwise_effects_discrete_(j, i) = k_prop;
-        recompute_Theta();
+        recompute_marginal_interactions();
 
         ll_prop = log_marginal_omrf(i) + log_marginal_omrf(j);
 
         // Restore
         pairwise_effects_discrete_(i, j) = k_curr;
         pairwise_effects_discrete_(j, i) = k_curr;
-        recompute_Theta();
+        recompute_marginal_interactions();
     } else {
         ll_curr = log_conditional_omrf(i) + log_conditional_omrf(j);
 
@@ -613,15 +659,17 @@ void MixedMRFModel::update_edge_indicator_discrete(int i, int j) {
 
     double ln_alpha = ll_prop - ll_curr;
 
+    // Discrete slab prior: Cauchy(0, pairwise_scale/2)
+    const double disc_slab_scale = 0.5 * pairwise_scale_;
     if(g_prop == 1) {
         // Add: slab prior, subtract proposal density, inclusion prior
-        ln_alpha += R::dcauchy(k_prop, 0.0, pairwise_scale_, true);
+        ln_alpha += R::dcauchy(k_prop, 0.0, disc_slab_scale, true);
         ln_alpha -= R::dnorm(k_prop, k_curr, prop_sd, true);
         ln_alpha += MY_LOG(inclusion_probability_(i, j))
                   - MY_LOG(1.0 - inclusion_probability_(i, j));
     } else {
         // Delete: subtract slab prior, add reverse proposal density, inclusion prior
-        ln_alpha -= R::dcauchy(k_curr, 0.0, pairwise_scale_, true);
+        ln_alpha -= R::dcauchy(k_curr, 0.0, disc_slab_scale, true);
         ln_alpha += R::dnorm(k_curr, k_prop, prop_sd, true);
         ln_alpha -= MY_LOG(inclusion_probability_(i, j))
                   - MY_LOG(1.0 - inclusion_probability_(i, j));
@@ -631,7 +679,7 @@ void MixedMRFModel::update_edge_indicator_discrete(int i, int j) {
         pairwise_effects_discrete_(i, j) = k_prop;
         pairwise_effects_discrete_(j, i) = k_prop;
         set_gxx(i, j, g_prop);
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 }
 
@@ -641,8 +689,9 @@ void MixedMRFModel::update_edge_indicator_discrete(int i, int j) {
 // =============================================================================
 // Metropolis-Hastings add-delete move for a continuous-continuous edge (i, j).
 // Uses Cholesky reparameterization (permute-free constants extraction).
-//   Add (G=0→1): propose ε ~ N(0, σ), k = C[2]*ε, constrain diagonal.
-//   Delete (G=1→0): set off-diag = 0, constrain diagonal.
+// All proposals and constants live in precision space.
+//   Add (G=0→1): propose ε ~ N(0, σ), precision_ij = C[3]*ε, constrain diagonal.
+//   Delete (G=1→0): set precision_ij = 0, constrain diagonal.
 // =============================================================================
 
 void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
@@ -651,24 +700,24 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
     int g_curr = gyy(i, j);
     int g_prop = 1 - g_curr;
 
-    double omega_prop_ij, omega_prop_jj;
+    double theta_prop_ij, theta_prop_jj;
 
     if(g_prop == 1) {
         // Add: propose from N(0, σ) on reparameterized scale
         double epsilon = rnorm(rng_, 0.0, proposal_sd_pairwise_continuous_(i, j));
-        omega_prop_ij = kyy_constants_[3] * epsilon;
-        omega_prop_jj = precision_constrained_diagonal(omega_prop_ij);
+        theta_prop_ij = cont_constants_[3] * epsilon;
+        theta_prop_jj = precision_constrained_diagonal(theta_prop_ij);
     } else {
-        // Delete: set off-diagonal to 0
-        omega_prop_ij = 0.0;
-        omega_prop_jj = precision_constrained_diagonal(0.0);
+        // Delete: set off-diagonal to 0 in precision space
+        theta_prop_ij = 0.0;
+        theta_prop_jj = precision_constrained_diagonal(0.0);
     }
 
-    // Fill proposal
-    precision_proposal_ = pairwise_effects_continuous_;
-    precision_proposal_(i, j) = omega_prop_ij;
-    precision_proposal_(j, i) = omega_prop_ij;
-    precision_proposal_(j, j) = omega_prop_jj;
+    // Fill proposal in precision space
+    precision_proposal_ = -2.0 * pairwise_effects_continuous_;
+    precision_proposal_(i, j) = theta_prop_ij;
+    precision_proposal_(j, i) = theta_prop_ij;
+    precision_proposal_(j, j) = theta_prop_jj;
 
     // --- Likelihood ratio ---
     double ln_alpha = log_ggm_ratio_edge(i, j);
@@ -677,52 +726,62 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
         for(size_t s = 0; s < p_; ++s)
             ln_alpha -= log_marginal_omrf(s);
 
-        arma::mat Theta_saved = Theta_;
+        arma::mat marginal_saved = marginal_interactions_;
         arma::mat pairwise_effects_continuous_saved = pairwise_effects_continuous_;
-        pairwise_effects_continuous_ = precision_proposal_;
-        recompute_Theta();
+        // Temporarily set continuous interactions to proposed value
+        pairwise_effects_continuous_(i, j) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, i) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, j) = -0.5 * theta_prop_jj;
+        recompute_marginal_interactions();
         for(size_t s = 0; s < p_; ++s)
             ln_alpha += log_marginal_omrf(s);
         pairwise_effects_continuous_ = pairwise_effects_continuous_saved;
-        Theta_ = std::move(Theta_saved);
+        marginal_interactions_ = std::move(marginal_saved);
     }
 
     // --- Spike-and-slab terms ---
+    // off-diagonal = -1/2 * precision_ij
+    double cont_prop_ij = -0.5 * theta_prop_ij;
+    double cont_curr_ij = pairwise_effects_continuous_(i, j);
+    // The proposal density is on the precision reparameterized scale:
+    // theta_prop_ij = C[3] * epsilon, so epsilon = theta_prop_ij / C[3]
     if(g_prop == 1) {
-        // Add: slab prior on proposed off-diag
-        ln_alpha += R::dcauchy(omega_prop_ij, 0.0, pairwise_scale_, true);
-        // Subtract proposal density: dnorm(k_prop / C[2], 0, σ) / C[2]
-        // = dnorm(epsilon, 0, σ) / C[2]
-        ln_alpha -= R::dnorm(omega_prop_ij / kyy_constants_[3], 0.0,
+        // Add: slab prior on proposed off-diagonal
+        ln_alpha += R::dcauchy(cont_prop_ij, 0.0, pairwise_scale_, true);
+        // Subtract proposal density (in precision space, Jacobian -1/2 cancels symmetrically)
+        ln_alpha -= R::dnorm(theta_prop_ij / cont_constants_[3], 0.0,
                              proposal_sd_pairwise_continuous_(i, j), true)
-                  - MY_LOG(kyy_constants_[3]);
+                  - MY_LOG(cont_constants_[3]);
         // Inclusion prior: log(π / (1-π))
         ln_alpha += MY_LOG(inclusion_probability_(p_ + i, p_ + j))
                   - MY_LOG(1.0 - inclusion_probability_(p_ + i, p_ + j));
     } else {
-        // Delete: subtract slab prior on current off-diag
-        ln_alpha -= R::dcauchy(pairwise_effects_continuous_(i, j), 0.0, pairwise_scale_, true);
-        // Add reverse proposal density: dnorm(k_curr / C[2], 0, σ) / C[2]
-        ln_alpha += R::dnorm(pairwise_effects_continuous_(i, j) / kyy_constants_[3], 0.0,
+        // Delete: subtract slab prior on current off-diagonal
+        ln_alpha -= R::dcauchy(cont_curr_ij, 0.0, pairwise_scale_, true);
+        // Add reverse proposal density
+        double theta_curr_ij = -2.0 * cont_curr_ij;
+        ln_alpha += R::dnorm(theta_curr_ij / cont_constants_[3], 0.0,
                              proposal_sd_pairwise_continuous_(i, j), true)
-                  - MY_LOG(kyy_constants_[3]);
+                  - MY_LOG(cont_constants_[3]);
         // Inclusion prior: log((1-π) / π)
         ln_alpha -= MY_LOG(inclusion_probability_(p_ + i, p_ + j))
                   - MY_LOG(1.0 - inclusion_probability_(p_ + i, p_ + j));
     }
 
     if(MY_LOG(runif(rng_)) < ln_alpha) {
-        double old_ij = pairwise_effects_continuous_(i, j);
-        double old_jj = pairwise_effects_continuous_(j, j);
+        // Pass old precision values to Cholesky update
+        double old_theta_ij = -2.0 * pairwise_effects_continuous_(i, j);
+        double old_theta_jj = -2.0 * pairwise_effects_continuous_(j, j);
 
-        pairwise_effects_continuous_(i, j) = omega_prop_ij;
-        pairwise_effects_continuous_(j, i) = omega_prop_ij;
-        pairwise_effects_continuous_(j, j) = omega_prop_jj;
+        // Store: pairwise_effects_continuous_ = -1/2 * precision
+        pairwise_effects_continuous_(i, j) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, i) = -0.5 * theta_prop_ij;
+        pairwise_effects_continuous_(j, j) = -0.5 * theta_prop_jj;
 
         set_gyy(i, j, g_prop);
-        cholesky_update_after_precision_edge(old_ij, old_jj, i, j);
+        cholesky_update_after_precision_edge(old_theta_ij, old_theta_jj, i, j);
         recompute_conditional_mean();
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 }
 
@@ -757,10 +816,10 @@ void MixedMRFModel::update_edge_indicator_cross(int i, int j) {
             ll_curr += log_marginal_omrf(s);
 
         arma::mat cond_mean_saved = conditional_mean_;
-        arma::mat Theta_saved = Theta_;
+        arma::mat marginal_saved = marginal_interactions_;
         pairwise_effects_cross_(i, j) = k_prop;
         recompute_conditional_mean();
-        recompute_Theta();
+        recompute_marginal_interactions();
 
         ll_prop = log_conditional_ggm();
         for(size_t s = 0; s < p_; ++s)
@@ -769,7 +828,7 @@ void MixedMRFModel::update_edge_indicator_cross(int i, int j) {
         // Restore
         pairwise_effects_cross_(i, j) = k_curr;
         conditional_mean_ = std::move(cond_mean_saved);
-        Theta_ = std::move(Theta_saved);
+        marginal_interactions_ = std::move(marginal_saved);
     } else {
         ll_curr = log_conditional_omrf(i) + log_conditional_ggm();
 
@@ -804,6 +863,6 @@ void MixedMRFModel::update_edge_indicator_cross(int i, int j) {
         pairwise_effects_cross_(i, j) = k_prop;
         set_gxy(i, j, g_prop);
         recompute_conditional_mean();
-        if(use_marginal_pl_) recompute_Theta();
+        if(use_marginal_pl_) recompute_marginal_interactions();
     }
 }

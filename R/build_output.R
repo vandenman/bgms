@@ -81,8 +81,8 @@ fill_mixed_symmetric = function(values, p, q, disc_idx, cont_idx, dimnames) {
 # ------------------------------------------------------------------
 # Computes slice indices for the mixed MRF flat parameter vector.
 # Groups main-effect indices (discrete thresholds, continuous means),
-# quadratic-effect indices (precision diagonal), and pairwise indices
-# (discrete edges, precision off-diagonal, cross edges).
+# quadratic-effect indices (continuous precision diagonal), and pairwise indices
+# (discrete edges, continuous off-diagonal, cross edges).
 #
 # @param num_thresholds  Total number of discrete threshold parameters.
 # @param p               Number of discrete variables.
@@ -108,7 +108,7 @@ compute_mixed_parameter_indices = function(num_thresholds, p, q) {
   pairwise_cross_end = nt + nxx + q + nxy
   pairwise_continuous_start = nt + nxx + q + nxy + 1L
 
-  # Precision diagonal vs off-diagonal within the continuous block
+  # Continuous diagonal vs off-diagonal within the continuous block
   precision_diag_within = integer(q)
   precision_offdiag_within = integer(nyy_offdiag)
   k_diag = 0L
@@ -408,19 +408,25 @@ build_output_bgm = function(spec, raw) {
     colnames(results$posterior_mean_main) = paste0("cat (", seq_len(ncol(pmm)), ")")
   }
 
-  # --- Posterior mean: pairwise -----------------------------------------------
-  results$posterior_mean_pairwise = matrix(0,
+  # --- Posterior mean: associations -------------------------------------------
+  # For GGM: C++ stores precision; convert to association scale (* -0.5).
+  # For OMRF: C++ already stores association-scale values.
+  associations = matrix(0,
     nrow = num_variables, ncol = num_variables,
     dimnames = list(data_columnnames, data_columnnames)
   )
-  results$posterior_mean_pairwise[lower.tri(results$posterior_mean_pairwise)] =
-    pairwise_summary$mean
-  results$posterior_mean_pairwise = results$posterior_mean_pairwise +
-    t(results$posterior_mean_pairwise)
-
-  # --- Precision diagonal on the pairwise matrix (GGM) -----------------------
+  associations[lower.tri(associations)] = pairwise_summary$mean
+  associations = associations + t(associations)
   if(is_continuous) {
-    diag(results$posterior_mean_pairwise) = main_summary$mean
+    associations = -0.5 * associations
+  }
+  results$posterior_mean_associations = associations
+
+  # --- Residual variance (GGM only) -------------------------------------------
+  # C++ stores precision diagonal; convert to residual variance = 1 / diag.
+  if(is_continuous) {
+    results$posterior_mean_residual_variance = 1 / main_summary$mean
+    names(results$posterior_mean_residual_variance) = data_columnnames
   }
 
   # --- Posterior mean: indicator + SBM ----------------------------------------
@@ -501,9 +507,10 @@ build_output_bgm = function(spec, raw) {
 #   C++ indicators:  [Gxx_ut | Gyy_ut | Gxy]
 #
 # Splits into main (discrete thresholds, continuous means),
-# quadratic (precision diagonal), and pairwise (discrete, precision
-# off-diag, cross). The precision diagonal is placed on the diagonal
-# of the pairwise interaction matrix, not under main effects.
+# quadratic (continuous diagonal), and pairwise (discrete,
+# continuous off-diagonal, cross). The continuous diagonal is
+# stored separately in posterior_mean_residual_variance;
+# the diagonal of the pairwise interaction matrix is zero.
 # ==============================================================================
 build_output_mixed_mrf = function(spec, raw) {
   d = spec$data
@@ -578,7 +585,7 @@ build_output_mixed_mrf = function(spec, raw) {
     names_main = c(names_main, paste0(cont_names[ji], " (mean)"))
   }
   for(ji in seq_len(q)) {
-    names_main = c(names_main, paste0(cont_names[ji], " (precision)"))
+    names_main = c(names_main, paste0(cont_names[ji], " (precision diag)"))
   }
 
   # Pairwise edge names — internal order, mapped to original column names
@@ -694,17 +701,17 @@ build_output_mixed_mrf = function(spec, raw) {
     continuous = pmm_cont
   )
 
-  # --- Posterior mean: pairwise as (p+q) × (p+q) matrix -----------------------
+  # --- Posterior mean: associations (all blocks) -----------------------------
   dn = list(data_columnnames, data_columnnames)
-  results$posterior_mean_pairwise = fill_mixed_symmetric(
+  results$posterior_mean_associations = fill_mixed_symmetric(
     pairwise_summary$mean, p, q, disc_idx, cont_idx, dn
   )
 
-  # --- Precision diagonal on the pairwise matrix (continuous block) -----------
-  kyy_diag_means = main_summary$mean[nt + q + seq_len(q)]
-  for(j in seq_len(q)) {
-    results$posterior_mean_pairwise[cont_idx[j], cont_idx[j]] = kyy_diag_means[j]
-  }
+  # --- Residual variance (continuous diagonal) --------------------------------
+  # C++ stores negative association diagonal; convert to residual variance.
+  assoc_diag_means = main_summary$mean[nt + q + seq_len(q)]
+  names(assoc_diag_means) = cont_names
+  results$posterior_mean_residual_variance = -1 / (2 * assoc_diag_means)
 
   # --- Posterior mean: indicator -----------------------------------------------
   if(edge_selection) {
@@ -828,17 +835,17 @@ build_output_compare = function(spec, raw) {
   colnames(results$posterior_mean_main_baseline) =
     paste0("cat (", seq_len(ncol(pmm)), ")")
 
-  # --- Posterior mean: pairwise baseline --------------------------------------
-  results$posterior_mean_pairwise_baseline = matrix(0,
+  # --- Posterior mean: associations baseline ----------------------------------
+  results$posterior_mean_associations_baseline = matrix(0,
     nrow = num_variables, ncol = num_variables,
     dimnames = list(data_columnnames, data_columnnames)
   )
-  results$posterior_mean_pairwise_baseline[
-    lower.tri(results$posterior_mean_pairwise_baseline)
+  results$posterior_mean_associations_baseline[
+    lower.tri(results$posterior_mean_associations_baseline)
   ] = summary_list$pairwise_baseline$mean
-  results$posterior_mean_pairwise_baseline =
-    results$posterior_mean_pairwise_baseline +
-    t(results$posterior_mean_pairwise_baseline)
+  results$posterior_mean_associations_baseline =
+    results$posterior_mean_associations_baseline +
+    t(results$posterior_mean_associations_baseline)
 
   # --- raw_samples ------------------------------------------------------------
   results$raw_samples = list(
