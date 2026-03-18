@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="index.html">bgms</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.5.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.6.4</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,10 +16,7 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
-<li class="nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="articles/introduction.html">Bayesian analysis of networks of binary and/or ordinal variables using the bgm function</a></li>
-  </ul></li>
+<li class="nav-item"><a class="nav-link" href="articles/index.html">Articles</a></li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json"></form></li>
@@ -43,11 +40,7 @@
           </p>
         </li>
         <li>
-          <p><strong>Giuseppe Arena</strong>. Contributor. <a href="https://orcid.org/0000-0001-5204-3326" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
-          </p>
-        </li>
-        <li>
-          <p><strong>Karoline Huth</strong>. Contributor. <a href="https://orcid.org/0000-0002-0662-1591" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
+          <p><strong>Don van den Bergh</strong>. Author. <a href="https://orcid.org/0000-0002-9838-7308" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
           </p>
         </li>
         <li>
@@ -55,7 +48,15 @@
           </p>
         </li>
         <li>
-          <p><strong>Don van den Bergh</strong>. Contributor. <a href="https://orcid.org/0000-0002-9838-7308" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
+          <p><strong>Giuseppe Arena</strong>. Contributor. <a href="https://orcid.org/0000-0001-5204-3326" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>
+          </p>
+        </li>
+        <li>
+          <p><strong>Laura Groot</strong>. Contributor.
+          </p>
+        </li>
+        <li>
+          <p><strong>Gali Geller</strong>. Contributor.
           </p>
         </li>
       </ul></div>
@@ -64,13 +65,54 @@
       <h2 id="citation">Citation</h2>
       <p><small class="dont-index">Source: <a href="https://github.com/Bayesian-Graphical-Modelling-Lab/bgms/blob/main/inst/CITATION" class="external-link"><code>inst/CITATION</code></a></small></p>
 
-      <p>Marsman, M., Arena, G., Huth, K., Sekulovski, N., &amp; van den Bergh, D. (2024). bgms: Bayesian analysis of networks of binary and/or ordinal variables. https://CRAN.R-project.org/package=bgms</p>
-      <pre>@Manual{,
-  title = {bgms: Bayesian analysis of networks of binary and/or ordinal variables},
-  author = {Maarten Marsman and Giuseppe Arena and Karoline Huth and Nikola Sekulovski and Don {van den Bergh}},
-  year = {2025},
+      <p>Marsman, M., &amp; van den Bergh, D. (2026). bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables. R package version 0.1.6.3.</p>
+      <pre>@Manual{bgms-package,
+  title = {bgms: Bayesian Analysis of Networks of Binary and/or Ordinal Variables},
+  author = {Maarten Marsman and Don {van den Bergh}},
+  year = {2026},
+  note = {R package version 0.1.6.3},
   url = {https://CRAN.R-project.org/package=bgms},
-  note = {R package version 0.1.4.3},
+}</pre>
+      <p>Marsman M, van den Bergh D, Haslbeck J (2025).
+“Bayesian analysis of the ordinal Markov random field.”
+<em>Psychometrika</em>, <b>90</b>(1), 146–182.
+<a href="https://doi.org/10.1017/psy.2024.4" class="external-link">doi:10.1017/psy.2024.4</a>.
+</p>
+      <pre>@Article{Marsman2025-ordinal,
+  title = {Bayesian analysis of the ordinal Markov random field},
+  author = {Maarten Marsman and Don {van den Bergh} and Jolanda M. B. Haslbeck},
+  journal = {Psychometrika},
+  year = {2025},
+  volume = {90},
+  number = {1},
+  pages = {146--182},
+  doi = {10.1017/psy.2024.4},
+}</pre>
+      <p>Marsman M, Waldorp L, Sekulovski N, Haslbeck J (2025).
+“Bayes factor tests for group differences in ordinal and binary graphical models.”
+<em>Psychometrika</em>, <b>90</b>(5), 1809–1842.
+<a href="https://doi.org/10.1017/psy.2025.10060" class="external-link">doi:10.1017/psy.2025.10060</a>.
+</p>
+      <pre>@Article{Marsman2025-bayes,
+  title = {Bayes factor tests for group differences in ordinal and binary graphical models},
+  author = {Maarten Marsman and Lourens J. Waldorp and Nikola Sekulovski and Jolanda M. B. Haslbeck},
+  journal = {Psychometrika},
+  year = {2025},
+  volume = {90},
+  number = {5},
+  pages = {1809--1842},
+  doi = {10.1017/psy.2025.10060},
+}</pre>
+      <p>Sekulovski N, Arena G, Haslbeck J, Huth K, Friel N, Marsman M (2025).
+“A stochastic block prior for clustering in graphical models.”
+PsyArXiv Preprints, <a href="https://osf.io/preprints/psyarxiv/29p3m_v1" class="external-link">https://osf.io/preprints/psyarxiv/29p3m_v1</a>.
+</p>
+      <pre>@Misc{Sekulovski2025-stochastic,
+  title = {A stochastic block prior for clustering in graphical models},
+  author = {Nikola Sekulovski and Giuseppe Arena and Jolanda M. B. Haslbeck and Karoline B. S. Huth and Nial Friel and Maarten Marsman},
+  year = {2025},
+  note = {PsyArXiv Preprints},
+  url = {https://osf.io/preprints/psyarxiv/29p3m_v1},
 }</pre>
     </div>
 
@@ -81,11 +123,11 @@
    </div>
   <footer><div class="container">
   <div class="pkgdown-footer-left">
-  <p>Developed by Maarten Marsman.</p>
+  <p>Developed by Maarten Marsman, Don van den Bergh.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.3.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
   </div></footer></body></html>

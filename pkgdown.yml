@@ -1,9 +1,11 @@
 pandoc: 3.1.11
-pkgdown: 2.1.3
+pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
-  introduction: introduction.html
-last_built: 2025-07-17T08:52Z
+  comparison: comparison.html
+  diagnostics: diagnostics.html
+  intro: intro.html
+last_built: 2026-03-18T10:35Z
 urls:
-  reference: https://maartenMarsman.github.io/bgms/reference
-  article: https://maartenMarsman.github.io/bgms/articles
+  reference: https://bayesian-graphical-modelling-lab.github.io/bgms/reference
+  article: https://bayesian-graphical-modelling-lab.github.io/bgms/articles
