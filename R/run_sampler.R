@@ -80,7 +80,11 @@ run_sampler_ggm = function(spec) {
     dirichlet_alpha = p$dirichlet_alpha,
     lambda = p$lambda,
     na_impute = m$na_impute,
-    missing_index_nullable = m$missing_index
+    missing_index_nullable = m$missing_index,
+    pairwise_prior = p$pairwise_prior,
+    pairwise_scale = p$pairwise_scale,
+    blasso_shape = p$blasso_shape,
+    blasso_rate = p$blasso_rate
   )
 
   out_raw

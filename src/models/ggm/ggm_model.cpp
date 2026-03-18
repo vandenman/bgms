@@ -109,8 +109,8 @@ void GGMModel::update_edge_parameter(size_t i, size_t j, int iteration) {
 
     double ln_alpha = log_density_impl_edge(i, j);
 
-    ln_alpha += R::dcauchy(precision_proposal_(i, j), 0.0, pairwise_scale_, true);
-    ln_alpha -= R::dcauchy(precision_matrix_(i, j), 0.0, pairwise_scale_, true);
+    ln_alpha += pairwise_prior_->log_density(precision_proposal_(i, j));
+    ln_alpha -= pairwise_prior_->log_density(precision_matrix_(i, j));
 
     if (MY_LOG(runif(rng_)) < ln_alpha) {
         double omega_ij_old = precision_matrix_(i, j);
@@ -250,7 +250,7 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         ln_alpha += MY_LOG(1.0 - inclusion_probability_(i, j)) - MY_LOG(inclusion_probability_(i, j));
 
         ln_alpha += R::dnorm(precision_matrix_(i, j) / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
-        ln_alpha -= R::dcauchy(precision_matrix_(i, j), 0.0, pairwise_scale_, true);
+        ln_alpha -= pairwise_prior_->log_density(precision_matrix_(i, j));
 
         if (MY_LOG(runif(rng_)) < ln_alpha) {
 
@@ -298,8 +298,8 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         // }
         ln_alpha += MY_LOG(inclusion_probability_(i, j)) - MY_LOG(1.0 - inclusion_probability_(i, j));
 
-        // Prior change: add slab (Cauchy prior)
-        ln_alpha += R::dcauchy(omega_prop_ij, 0.0, pairwise_scale_, true);
+        // Prior change: add slab prior
+        ln_alpha += pairwise_prior_->log_density(omega_prop_ij);
 
         // Proposal term: proposed edge value given it was generated from truncated normal
         ln_alpha -= R::dnorm(omega_prop_ij / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
@@ -346,6 +346,11 @@ void GGMModel::do_one_metropolis_step(int iteration) {
             }
         }
     }
+
+    // Update pairwise prior hyperparameters (no-op for Cauchy)
+    pairwise_prior_->update_hyperparameters(
+        precision_matrix_, edge_indicators_,
+        static_cast<int>(p_), rng_);
 }
 
 void GGMModel::init_metropolis_adaptation(const WarmupSchedule& schedule) {
@@ -441,7 +446,7 @@ GGMModel createGGMModelFromR(
     const arma::mat& prior_inclusion_prob,
     const arma::imat& initial_edge_indicators,
     const bool edge_selection,
-    const double pairwise_scale,
+    std::unique_ptr<BasePairwisePrior> pairwise_prior,
     const bool na_impute
 ) {
 
@@ -454,7 +459,7 @@ GGMModel createGGMModelFromR(
             prior_inclusion_prob,
             initial_edge_indicators,
             edge_selection,
-            pairwise_scale
+            std::move(pairwise_prior)
         );
     } else if (inputFromR.containsElementNamed("X")) {
         arma::mat X = Rcpp::as<arma::mat>(inputFromR["X"]);
@@ -463,7 +468,7 @@ GGMModel createGGMModelFromR(
             prior_inclusion_prob,
             initial_edge_indicators,
             edge_selection,
-            pairwise_scale,
+            std::move(pairwise_prior),
             na_impute
         );
     } else {

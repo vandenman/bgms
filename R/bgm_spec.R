@@ -108,6 +108,12 @@ new_bgm_spec = function(model_type, data, variables, missing, prior,
     stopifnot(is.character(prior$edge_prior), length(prior$edge_prior) == 1L)
     stopifnot(is.matrix(prior$inclusion_probability))
   }
+  if(model_type == "ggm") {
+    stopifnot(is.character(prior$pairwise_prior), length(prior$pairwise_prior) == 1L)
+    stopifnot(is.numeric(prior$pairwise_scale), length(prior$pairwise_scale) == 1L)
+    stopifnot(is.numeric(prior$blasso_shape), length(prior$blasso_shape) == 1L)
+    stopifnot(is.numeric(prior$blasso_rate), length(prior$blasso_rate) == 1L)
+  }
   if(model_type == "compare") {
     stopifnot(
       is.logical(prior$difference_selection),
@@ -265,6 +271,10 @@ bgm_spec = function(x,
                     beta_bernoulli_beta_between = 1,
                     dirichlet_alpha = 1,
                     lambda = 1,
+                    # Priors (GGM pairwise)
+                    pairwise_prior = c("cauchy", "blasso"),
+                    blasso_shape = 2,
+                    blasso_rate = 0.1,
                     # Priors (compare-specific)
                     difference_selection = TRUE,
                     main_difference_selection = FALSE,
@@ -289,6 +299,7 @@ bgm_spec = function(x,
                     verbose = TRUE,
                     pseudolikelihood = c("conditional", "marginal")) {
   model_type = match.arg(model_type)
+  pairwise_prior = match.arg(pairwise_prior)
   na_action = tryCatch(match.arg(na_action), error = function(e) {
     stop(paste0(
       "The na_action argument should be one of \"listwise\" or \"impute\", not \"",
@@ -369,7 +380,11 @@ bgm_spec = function(x,
       beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
       beta_bernoulli_beta_between = beta_bernoulli_beta_between,
       dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      lambda = lambda,
+      pairwise_prior = pairwise_prior,
+      pairwise_scale = pairwise_scale,
+      blasso_shape = blasso_shape,
+      blasso_rate = blasso_rate
     )
   } else if(model_type == "mixed_mrf") {
     pseudolikelihood = match.arg(pseudolikelihood)
@@ -450,7 +465,9 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
                           beta_bernoulli_alpha, beta_bernoulli_beta,
                           beta_bernoulli_alpha_between,
                           beta_bernoulli_beta_between,
-                          dirichlet_alpha, lambda) {
+                          dirichlet_alpha, lambda,
+                          pairwise_prior, pairwise_scale,
+                          blasso_shape, blasso_rate) {
   # Missing data
   md = validate_missing_data(
     x = x, na_action = na_action,
@@ -501,7 +518,11 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
       beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
       beta_bernoulli_beta_between = beta_bernoulli_beta_between,
       dirichlet_alpha = dirichlet_alpha,
-      lambda = lambda
+      lambda = lambda,
+      pairwise_prior = pairwise_prior,
+      pairwise_scale = pairwise_scale,
+      blasso_shape = blasso_shape,
+      blasso_rate = blasso_rate
     ),
     sampler = sampler_sublist(sampler),
     precomputed = list()

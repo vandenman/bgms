@@ -243,6 +243,9 @@ build_output_bgm = function(spec, raw) {
   if(is_continuous) {
     # GGM: samples contain the upper triangle of the precision matrix
     # (row-major). Diagonal entries are "main"; off-diagonal are "pairwise".
+    # When pairwise_prior = "blasso", an extra lambda column is appended.
+    has_blasso = identical(p$pairwise_prior, "blasso")
+    n_precision = num_variables * (num_variables + 1L) / 2L
     diag_idx = integer(num_variables)
     offdiag_idx = integer(num_variables * (num_variables - 1L) / 2L)
     pos = 0L
@@ -268,6 +271,9 @@ build_output_bgm = function(spec, raw) {
         userInterrupt    = isTRUE(chain$userInterrupt),
         chain_id         = chain$chain_id
       )
+      if(has_blasso) {
+        res$lambda_samples = samples_t[, n_precision + 1L, drop = TRUE]
+      }
       if(!is.null(chain$indicator_samples)) {
         res$indicator_samples = t(chain$indicator_samples)[, offdiag_idx, drop = FALSE]
       }
@@ -452,6 +458,13 @@ build_output_bgm = function(spec, raw) {
       results$posterior_mode_allocations = sbm_summary$allocations_mode
       results$posterior_num_blocks = sbm_summary$blocks
     }
+  }
+
+  # --- Bayesian Lasso lambda samples ------------------------------------------
+  if(is_continuous && identical(p$pairwise_prior, "blasso")) {
+    results$lambda_samples = lapply(raw, `[[`, "lambda_samples")
+    all_lambda = unlist(results$lambda_samples)
+    results$posterior_mean_lambda = mean(all_lambda)
   }
 
   # --- arguments + class ------------------------------------------------------

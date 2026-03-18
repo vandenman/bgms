@@ -265,6 +265,32 @@
 #' @param lambda Double. Rate of the zero-truncated Poisson prior on the
 #'   number of clusters in the Stochastic Block Model. Default: \code{1}.
 #'
+#' @param pairwise_prior Character. Specifies the prior on off-diagonal
+#'   precision matrix elements (continuous variables only). Options:
+#'   \describe{
+#'     \item{\code{"cauchy"}}{Half-Cauchy slab prior with scale
+#'       \code{pairwise_scale}. The default.}
+#'     \item{\code{"blasso"}}{Bayesian Lasso (double-exponential) prior.
+#'       Places a Laplace(\eqn{\lambda}) prior on each off-diagonal element:
+#'       \deqn{p(\omega_{ij} \mid \lambda) = \frac{\lambda}{2}
+#'         \exp(-\lambda |\omega_{ij}|),}
+#'       with a Gamma hyperprior on \eqn{\lambda^{2}}:
+#'       \deqn{\lambda^{2} \sim
+#'         \textrm{Gamma}(\code{blasso\_shape}, \code{blasso\_rate}).}
+#'       The shrinkage parameter \eqn{\lambda} is sampled from its full
+#'       conditional at every MCMC sweep and stored alongside the precision
+#'       samples.}
+#'   }
+#'   Default: \code{"cauchy"}.
+#'
+#' @param blasso_shape Double. Shape parameter of the
+#'   Gamma(\code{blasso_shape}, \code{blasso_rate}) hyperprior on
+#'   \eqn{\lambda^{2}} in the Bayesian Lasso prior. Default: \code{2}.
+#'
+#' @param blasso_rate Double. Rate parameter of the
+#'   Gamma(\code{blasso_shape}, \code{blasso_rate}) hyperprior on
+#'   \eqn{\lambda^{2}} in the Bayesian Lasso prior. Default: \code{0.1}.
+#'
 #' @param na_action Character. Specifies missing data handling. Either
 #'   \code{"listwise"} (drop rows with missing values) or \code{"impute"}
 #'   (perform single imputation during sampling). Default: \code{"listwise"}.
@@ -434,6 +460,9 @@ bgm = function(
   beta_bernoulli_beta_between = 1,
   dirichlet_alpha = 1,
   lambda = 1,
+  pairwise_prior = c("cauchy", "blasso"),
+  blasso_shape = 2,
+  blasso_rate = 0.1,
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
@@ -507,6 +536,9 @@ bgm = function(
     beta_bernoulli_beta_between = beta_bernoulli_beta_between,
     dirichlet_alpha = dirichlet_alpha,
     lambda = lambda,
+    pairwise_prior = pairwise_prior,
+    blasso_shape = blasso_shape,
+    blasso_rate = blasso_rate,
     update_method = update_method,
     target_accept = if(hasArg(target_accept)) target_accept else NULL,
     iter = iter,

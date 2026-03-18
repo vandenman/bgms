@@ -5,6 +5,7 @@
 #include "models/base_model.h"
 #include "math/cholesky_helpers.h"
 #include "rng/rng_utils.h"
+#include "priors/pairwise_prior.h"
 
 
 /**
@@ -31,15 +32,15 @@ public:
      * @param inclusion_probability Prior inclusion probabilities for each edge
      * @param initial_edge_indicators Initial edge inclusion indicators
      * @param edge_selection        Enable edge selection (spike-and-slab)
-     * @param pairwise_scale        Scale parameter of Cauchy slab prior
+     * @param pairwise_prior        Pairwise (slab) prior on off-diagonal elements
      * @param na_impute             Retain observations for missing-data imputation
      */
     GGMModel(
             const arma::mat& observations,
             const arma::mat& inclusion_probability,
             const arma::imat& initial_edge_indicators,
-            const bool edge_selection = true,
-            const double pairwise_scale = 2.5,
+            const bool edge_selection,
+            std::unique_ptr<BasePairwisePrior> pairwise_prior,
             const bool na_impute = false
     ) : n_(observations.n_rows),
         p_(observations.n_cols),
@@ -47,7 +48,7 @@ public:
         suf_stat_(observations.t() * observations),
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
-        pairwise_scale_(pairwise_scale),
+        pairwise_prior_(std::move(pairwise_prior)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -71,22 +72,22 @@ public:
      * @param inclusion_probability Prior inclusion probabilities for each edge
      * @param initial_edge_indicators Initial edge inclusion indicators
      * @param edge_selection        Enable edge selection (spike-and-slab)
-     * @param pairwise_scale        Scale parameter of Cauchy slab prior
+     * @param pairwise_prior        Pairwise (slab) prior on off-diagonal elements
      */
     GGMModel(
             const int n,
             const arma::mat& suf_stat,
             const arma::mat& inclusion_probability,
             const arma::imat& initial_edge_indicators,
-            const bool edge_selection = true,
-            const double pairwise_scale = 2.5
+            const bool edge_selection,
+            std::unique_ptr<BasePairwisePrior> pairwise_prior
     ) : n_(n),
         p_(suf_stat.n_cols),
         dim_((p_ * (p_ + 1)) / 2),
         suf_stat_(suf_stat),
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
-        pairwise_scale_(pairwise_scale),
+        pairwise_prior_(std::move(pairwise_prior)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -107,7 +108,7 @@ public:
           suf_stat_(other.suf_stat_),
           inclusion_probability_(other.inclusion_probability_),
           edge_selection_(other.edge_selection_),
-          pairwise_scale_(other.pairwise_scale_),
+          pairwise_prior_(other.pairwise_prior_->clone()),
           precision_matrix_(other.precision_matrix_),
           cholesky_of_precision_(other.cholesky_of_precision_),
           inv_cholesky_of_precision_(other.inv_cholesky_of_precision_),
@@ -192,6 +193,29 @@ public:
     size_t full_parameter_dimension() const override { return dim_; }
 
     /**
+     * Storage dimension: p(p+1)/2, plus 1 for lambda when a pairwise
+     * hyperparameter is sampled (Bayesian Lasso).
+     */
+    size_t storage_dimension() const override {
+        return dim_ + (pairwise_prior_->has_hyperparameter() ? 1 : 0);
+    }
+
+    /**
+     * Parameters for storage: upper triangle of the precision matrix,
+     * optionally followed by the current lambda value.
+     */
+    arma::vec get_storage_vectorized_parameters() const override {
+        if (!pairwise_prior_->has_hyperparameter()) {
+            return extract_upper_triangle();
+        }
+        arma::vec result(dim_ + 1);
+        arma::vec ut = extract_upper_triangle();
+        result.head(dim_) = ut;
+        result(dim_) = pairwise_prior_->get_lambda();
+        return result;
+    }
+
+    /**
      * Set random seed for reproducibility.
      * @param seed  Integer seed value
      */
@@ -244,6 +268,12 @@ public:
         return static_cast<int>(p_ * (p_ - 1) / 2);
     }
 
+    /** @return Current shrinkage parameter (nonzero for Bayesian Lasso). */
+    double get_lambda() const { return pairwise_prior_->get_lambda(); }
+
+    /** @return Whether the pairwise prior has a sampled hyperparameter. */
+    bool has_pairwise_hyperparameter() const { return pairwise_prior_->has_hyperparameter(); }
+
     /** @return Deep copy of this model. */
     std::unique_ptr<BaseModel> clone() const override {
         return std::make_unique<GGMModel>(*this);
@@ -278,8 +308,8 @@ private:
     bool edge_selection_;
     /// Whether edge add-delete proposals are currently active.
     bool edge_selection_active_ = false;
-    /// Scale parameter of the Cauchy slab prior on off-diagonal elements.
-    double pairwise_scale_;
+    /// Pairwise (slab) prior on off-diagonal precision elements.
+    std::unique_ptr<BasePairwisePrior> pairwise_prior_;
 
     /// Precision matrix Omega, its Cholesky factor R (Omega = R'R),
     /// inverse Cholesky factor, and covariance matrix.
@@ -471,7 +501,7 @@ GGMModel createGGMModelFromR(
     const Rcpp::List& inputFromR,
     const arma::mat& inclusion_probability,
     const arma::imat& initial_edge_indicators,
-    const bool edge_selection = true,
-    const double pairwise_scale = 2.5,
+    const bool edge_selection,
+    std::unique_ptr<BasePairwisePrior> pairwise_prior,
     const bool na_impute = false
 );
