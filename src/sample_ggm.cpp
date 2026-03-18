@@ -8,6 +8,7 @@
 #include "utils/progress_manager.h"
 #include "utils/common_helpers.h"
 #include "priors/edge_prior.h"
+#include "priors/pairwise_prior.h"
 #include "mcmc/execution/chain_result.h"
 #include "mcmc/execution/chain_runner.h"
 #include "mcmc/execution/sampler_config.h"
@@ -32,13 +33,21 @@ Rcpp::List sample_ggm(
     const double dirichlet_alpha = 1.0,
     const double lambda = 1.0,
     const bool na_impute = false,
-    const Rcpp::Nullable<Rcpp::IntegerMatrix> missing_index_nullable = R_NilValue
+    const Rcpp::Nullable<Rcpp::IntegerMatrix> missing_index_nullable = R_NilValue,
+    const std::string& pairwise_prior = "cauchy",
+    const double pairwise_scale = 2.5,
+    const double blasso_shape = 2.0,
+    const double blasso_rate = 0.1
 ) {
+
+    // Create pairwise prior
+    auto pw_prior = create_pairwise_prior(
+        pairwise_prior, pairwise_scale, blasso_shape, blasso_rate);
 
     // Create model from R input
     GGMModel model = createGGMModelFromR(
         inputFromR, prior_inclusion_prob, initial_edge_indicators,
-        edge_selection, 2.5, na_impute);
+        edge_selection, std::move(pw_prior), na_impute);
 
     // Set up missing data imputation (same pattern as OMRF)
     if (na_impute && missing_index_nullable.isNotNull()) {
