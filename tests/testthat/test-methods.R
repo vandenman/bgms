@@ -622,8 +622,8 @@ test_that("predict.bgms GGM conditional mean matches analytic formula", {
 
   pred = predict(fit, newdata = newdata)
 
-  # Reconstruct the posterior mean precision matrix
-  omega_hat = fit$posterior_mean_pairwise
+  # Reconstruct the posterior mean precision matrix (precision = -2 * association)
+  omega_hat = extract_precision(fit)
   p = args$num_variables
 
   # Center newdata by its own means (predict does the same internally)

@@ -85,7 +85,15 @@
 #    where Theta_ss is absorbed into main_param. The affected configs use
 #    structure-only comparison against CRAN fixtures.
 #
-# 8. Lazy diagnostics & C++ ESS/Rhat (PR #77):
+# 8. Association-scale reparameterization (stored A = σ/2):
+#    OMRF pairwise effects are now stored on association scale (half the old
+#    conditional rest-score coefficient σ). The Cauchy prior scale is halved
+#    to keep the posterior equivalent, but the MCMC sampler operates on
+#    association scale with different proposal/step-size scales, so MCMC
+#    trajectories diverge from CRAN 0.1.6.3 fixtures. All configs use
+#    structure-only comparison until fixtures are regenerated.
+#
+# 9. Lazy diagnostics & C++ ESS/Rhat (PR #77):
 #    - posterior_summary diagnostic columns (n_eff, Rhat, mcse) are now
 #      computed by C++ AR-spectral / Gelman-Rubin instead of coda.
 #      Values differ at the algorithmic level.
@@ -97,7 +105,7 @@
 #    n_eff_mixt, Rhat, mcse). posterior_mean comparisons use tolerance
 #    1e-12.
 #
-# 9. sd / mcse swap in pairwise summaries (bug fix, CONFIRMED):
+# 10. sd / mcse swap in pairwise summaries (bug fix, CONFIRMED):
 #    CRAN 0.1.6.3 placed MCSE in the sd column and SD in the mcse column
 #    for edge-selected pairwise summaries. The new code has them correct:
 #    sd = posterior SD, mcse = sd / sqrt(n_eff).
@@ -417,7 +425,7 @@ extract_bgm_actual = function(fit) {
     posterior_summary_pairwise = fit$posterior_summary_pairwise,
     posterior_summary_indicator = fit$posterior_summary_indicator,
     posterior_mean_main = fit$posterior_mean_main,
-    posterior_mean_pairwise = fit$posterior_mean_pairwise,
+    posterior_mean_associations = fit$posterior_mean_associations,
     posterior_mean_indicator = fit$posterior_mean_indicator,
     raw_main_chain1 = fit$raw_samples$main[[1]],
     raw_pairwise_chain1 = fit$raw_samples$pairwise[[1]],
@@ -440,9 +448,9 @@ extract_compare_actual = function(fit) {
     posterior_summary_pairwise_differences = fit$posterior_summary_pairwise_differences,
     posterior_summary_indicator = fit$posterior_summary_indicator,
     posterior_mean_main_baseline = fit$posterior_mean_main_baseline,
-    posterior_mean_pairwise_baseline = fit$posterior_mean_pairwise_baseline,
+    posterior_mean_associations_baseline = fit$posterior_mean_associations_baseline,
     posterior_mean_main_differences = fit$posterior_mean_main_differences,
-    posterior_mean_pairwise_differences = fit$posterior_mean_pairwise_differences,
+    posterior_mean_associations_differences = fit$posterior_mean_associations_differences,
     posterior_mean_indicator = fit$posterior_mean_indicator,
     raw_samples = fit$raw_samples,
     nuts_diag = fit$nuts_diag
@@ -462,13 +470,10 @@ na_bugfix_ids = c(
 )
 
 # Configs excluded from bitwise comparison due to confirmed algorithm changes
-# (see header notes 5 and 7). Checked for structural match only.
+# Configs excluded from bitwise comparison due to confirmed algorithm changes
+# (see header notes 4, 5, 7, 8). Checked for structural match only.
 structure_only_ids = c(
-  "bgm_wenchuan_nuts_blumecapel_impute", # Blume-Capel imputation bug fix (note 5c)
-  "bgm_wenchuan_nuts_sbm", # SBM lazy init changes RNG order (note 4)
-  "bgm_adhd_nuts_sbm", # SBM lazy init changes RNG order (note 4)
-  "bgm_boredom_hmc_bernoulli", # overflow guard reclassifies fast/slow (note 7)
-  "cmp_wenchuan_hmc_bernoulli" # overflow guard reclassifies fast/slow (note 7)
+  names(all_configs) # all OMRF after association-scale reparameterization (note 8)
 )
 
 # Diagnostic and derived columns that changed in PR #77 (note 8).
@@ -496,7 +501,7 @@ compare_fields = function(expected, actual, type, id) {
     fields = c(
       "posterior_summary_main", "posterior_summary_pairwise",
       "posterior_summary_indicator",
-      "posterior_mean_main", "posterior_mean_pairwise", "posterior_mean_indicator",
+      "posterior_mean_main", "posterior_mean_associations", "posterior_mean_indicator",
       "raw_main_chain1", "raw_pairwise_chain1", "raw_indicator_chain1",
       "posterior_coclustering_matrix", "posterior_mean_allocations"
     )
@@ -505,8 +510,8 @@ compare_fields = function(expected, actual, type, id) {
       "posterior_summary_main_baseline", "posterior_summary_pairwise_baseline",
       "posterior_summary_main_differences", "posterior_summary_pairwise_differences",
       "posterior_summary_indicator",
-      "posterior_mean_main_baseline", "posterior_mean_pairwise_baseline",
-      "posterior_mean_main_differences", "posterior_mean_pairwise_differences",
+      "posterior_mean_main_baseline", "posterior_mean_associations_baseline",
+      "posterior_mean_main_differences", "posterior_mean_associations_differences",
       "posterior_mean_indicator",
       "raw_samples"
     )
@@ -629,14 +634,14 @@ compare_fields = function(expected, actual, type, id) {
   mismatches
 }
 
-# Structure-only check for SBM and impute configs: verifies that output fields
+# Structure-only check: verifies that output fields
 # have matching names, dimensions, and types without requiring identical values.
 check_structure = function(expected, actual, type) {
   if(type == "bgm") {
     fields = c(
       "posterior_summary_main", "posterior_summary_pairwise",
       "posterior_summary_indicator",
-      "posterior_mean_main", "posterior_mean_pairwise", "posterior_mean_indicator",
+      "posterior_mean_main", "posterior_mean_associations", "posterior_mean_indicator",
       "raw_main_chain1", "raw_pairwise_chain1", "raw_indicator_chain1"
     )
   } else {
@@ -644,8 +649,8 @@ check_structure = function(expected, actual, type) {
       "posterior_summary_main_baseline", "posterior_summary_pairwise_baseline",
       "posterior_summary_main_differences", "posterior_summary_pairwise_differences",
       "posterior_summary_indicator",
-      "posterior_mean_main_baseline", "posterior_mean_pairwise_baseline",
-      "posterior_mean_main_differences", "posterior_mean_pairwise_differences",
+      "posterior_mean_main_baseline", "posterior_mean_associations_baseline",
+      "posterior_mean_main_differences", "posterior_mean_associations_differences",
       "posterior_mean_indicator",
       "raw_samples"
     )
@@ -750,7 +755,9 @@ for(entry in manifest) {
     actual = extract_compare_actual(fit)
   }
 
-  # Compare: structure-only for known algorithm changes, bitwise otherwise
+  # Compare: structure-only for all configs pending fixture regeneration
+  # (note 8: association-scale reparameterization breaks bitwise identity
+  # with CRAN 0.1.6.3 fixtures)
   if(id %in% structure_only_ids) {
     mismatches = check_structure(expected, actual, type)
     label = "PASS (structure)"
@@ -789,5 +796,5 @@ if(fail_count > 0 || error_count > 0) {
   }
   quit(status = 1)
 } else if(pass_count == total) {
-  cat("All fixtures match — build is bitwise-identical to CRAN 0.1.6.3.\n")
+  cat("All fixtures match (structure-only pending association-scale fixture regeneration).\n")
 }
