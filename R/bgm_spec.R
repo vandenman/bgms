@@ -107,7 +107,6 @@ new_bgm_spec = function(model_type, data, variables, missing, prior,
     stopifnot(is.logical(prior$edge_selection), length(prior$edge_selection) == 1L)
     stopifnot(is.character(prior$edge_prior), length(prior$edge_prior) == 1L)
     stopifnot(is.matrix(prior$inclusion_probability))
-    stopifnot(is.null(prior$include_edge) || is.matrix(prior$include_edge))
   }
   if(model_type == "compare") {
     stopifnot(
@@ -172,8 +171,8 @@ validate_bgm_spec = function(spec) {
     if(!isTRUE(spec$variables$is_continuous)) {
       stop("bgm_spec: model_type = 'ggm' requires is_continuous = TRUE.")
     }
-    if(spec$sampler$update_method == "hamiltonian-mc") {
-      stop("bgm_spec: model_type = 'ggm' does not support update_method = 'hamiltonian-mc'. Use 'nuts' or 'adaptive-metropolis'.")
+    if(spec$sampler$update_method != "adaptive-metropolis") {
+      stop("bgm_spec: model_type = 'ggm' requires update_method = 'adaptive-metropolis'.")
     }
   }
 
@@ -255,7 +254,6 @@ bgm_spec = function(x,
                     main_beta = 0.5,
                     standardize = FALSE,
                     edge_selection = TRUE,
-                    include_edge = NULL,
                     edge_prior = c(
                       "Bernoulli", "Beta-Bernoulli",
                       "Stochastic-Block"
@@ -329,9 +327,6 @@ bgm_spec = function(x,
     model_type = "mixed_mrf"
   }
 
-  # --- Include edge (optional fixed graph) -------------------------------------
-  include_edge = validate_include_edge(include_edge, num_variables)
-
   # --- Sampler (needs is_continuous and edge_selection early) ------------------
   sampler = validate_sampler(
     update_method     = update_method,
@@ -367,7 +362,6 @@ bgm_spec = function(x,
       baseline_category = as.integer(rep(0L, num_variables)),
       na_action = na_action, sampler = sampler,
       edge_selection = edge_selection,
-      include_edge = include_edge,
       edge_prior = edge_prior,
       inclusion_probability = inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,
@@ -389,7 +383,6 @@ bgm_spec = function(x,
       main_beta = main_beta, standardize = standardize,
       pseudolikelihood = pseudolikelihood,
       edge_selection = edge_selection,
-      include_edge = include_edge,
       edge_prior = edge_prior,
       inclusion_probability = inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,
@@ -410,7 +403,6 @@ bgm_spec = function(x,
       pairwise_scale = pairwise_scale, main_alpha = main_alpha,
       main_beta = main_beta, standardize = standardize,
       edge_selection = edge_selection,
-      include_edge = include_edge,
       edge_prior = edge_prior,
       inclusion_probability = inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,
@@ -453,7 +445,7 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
                           variable_type, is_ordinal, is_continuous,
                           baseline_category,
                           na_action, sampler,
-                          edge_selection, include_edge, edge_prior,
+                          edge_selection, edge_prior,
                           inclusion_probability,
                           beta_bernoulli_alpha, beta_bernoulli_beta,
                           beta_bernoulli_alpha_between,
@@ -502,7 +494,6 @@ build_spec_ggm = function(x, data_columnnames, num_variables,
     ),
     prior = list(
       edge_selection = ep$edge_selection,
-      include_edge = include_edge,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,
@@ -524,7 +515,7 @@ build_spec_omrf = function(x, data_columnnames, num_variables,
                            na_action, sampler,
                            pairwise_scale, main_alpha, main_beta,
                            standardize,
-                           edge_selection, include_edge, edge_prior,
+                           edge_selection, edge_prior,
                            inclusion_probability,
                            beta_bernoulli_alpha, beta_bernoulli_beta,
                            beta_bernoulli_alpha_between,
@@ -610,7 +601,6 @@ build_spec_omrf = function(x, data_columnnames, num_variables,
       standardize = standardize,
       pairwise_scaling_factors = psf,
       edge_selection = ep$edge_selection,
-      include_edge = include_edge,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,
@@ -643,7 +633,7 @@ build_spec_mixed_mrf = function(x, data_columnnames, num_variables,
                                 na_action, sampler,
                                 pairwise_scale, main_alpha, main_beta,
                                 standardize, pseudolikelihood,
-                                edge_selection, include_edge, edge_prior,
+                                edge_selection, edge_prior,
                                 inclusion_probability,
                                 beta_bernoulli_alpha, beta_bernoulli_beta,
                                 beta_bernoulli_alpha_between,
@@ -783,7 +773,6 @@ build_spec_mixed_mrf = function(x, data_columnnames, num_variables,
       standardize = standardize,
       pseudolikelihood = pseudolikelihood,
       edge_selection = ep$edge_selection,
-      include_edge = include_edge,
       edge_prior = ep$edge_prior,
       inclusion_probability = ep$inclusion_probability,
       beta_bernoulli_alpha = beta_bernoulli_alpha,

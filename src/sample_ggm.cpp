@@ -21,7 +21,6 @@ Rcpp::List sample_ggm(
     const int no_warmup,
     const int no_chains,
     const bool edge_selection,
-    const std::string& sampler_type,
     const int seed,
     const int no_threads,
     const int progress_type,
@@ -32,8 +31,6 @@ Rcpp::List sample_ggm(
     const double beta_bernoulli_beta_between = 1.0,
     const double dirichlet_alpha = 1.0,
     const double lambda = 1.0,
-    const double target_acceptance = 0.8,
-    const int max_tree_depth = 10,
     const bool na_impute = false,
     const Rcpp::Nullable<Rcpp::IntegerMatrix> missing_index_nullable = R_NilValue
 ) {
@@ -50,15 +47,13 @@ Rcpp::List sample_ggm(
         model.set_missing_data(missing_index);
     }
 
-    // Configure sampler
+    // Configure sampler - GGM only supports MH
     SamplerConfig config;
-    config.sampler_type = sampler_type;
+    config.sampler_type = "mh";
     config.no_iter = no_iter;
     config.no_warmup = no_warmup;
     config.edge_selection = edge_selection;
     config.seed = seed;
-    config.target_acceptance = target_acceptance;
-    config.max_tree_depth = max_tree_depth;
     config.na_impute = na_impute;
 
     // Set up progress manager

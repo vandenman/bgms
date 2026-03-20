@@ -4,7 +4,6 @@
 #include <functional>
 #include <utility>
 #include "mcmc/execution/step_result.h"
-#include "mcmc/algorithms/leapfrog.h"
 struct SafeRNG;
 
 
@@ -56,6 +55,5 @@ StepResult nuts_step(
     const std::function<std::pair<double, arma::vec>(const arma::vec&)>& joint,
     const arma::vec& inv_mass_diag,
     SafeRNG& rng,
-    int max_depth = 10,
-    const ProjectFn* project = nullptr
+    int max_depth = 10
 );

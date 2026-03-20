@@ -64,15 +64,17 @@ test_that("GGM + explicit 'adaptive-metropolis' OK", {
   expect_equal(res$update_method, "adaptive-metropolis")
 })
 
-test_that("GGM + explicit 'nuts' OK", {
-  res = vs(is_continuous = TRUE, update_method = "nuts")
-  expect_equal(res$update_method, "nuts")
+test_that("GGM + explicit 'nuts' errors", {
+  expect_error(
+    vs(is_continuous = TRUE, update_method = "nuts"),
+    "adaptive-metropolis"
+  )
 })
 
 test_that("GGM + explicit 'hamiltonian-mc' errors", {
   expect_error(
     vs(is_continuous = TRUE, update_method = "hamiltonian-mc"),
-    "hamiltonian-mc"
+    "adaptive-metropolis"
   )
 })
 

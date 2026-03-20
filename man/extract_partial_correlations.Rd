@@ -34,10 +34,8 @@ Extract Posterior Mean Partial Correlations
 }
 \examples{
 \donttest{
-fit = bgm(
-  x = Wenchuan[, 1:3],
-  variable_type = rep("continuous", 3)
-)
+fit = bgm(x = Wenchuan[, 1:3],
+          variable_type = rep("continuous", 3))
 extract_partial_correlations(fit)
 }
 
