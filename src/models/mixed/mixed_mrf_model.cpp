@@ -47,6 +47,7 @@ MixedMRFModel::MixedMRFModel(
     num_pairwise_xx_ = (p_ * (p_ - 1)) / 2;
     num_pairwise_yy_ = (q_ * (q_ - 1)) / 2;
     num_cross_ = p_ * q_;
+    num_cholesky_ = (q_ * (q_ + 1)) / 2;
 
     max_cats_ = num_categories_.max();
 
@@ -59,6 +60,7 @@ MixedMRFModel::MixedMRFModel(
         }
     }
     discrete_observations_dbl_ = arma::conv_to<arma::mat>::from(discrete_observations_);
+    discrete_observations_dbl_t_ = discrete_observations_dbl_.t();
 
     // Compute sufficient statistics
     compute_sufficient_statistics();
@@ -104,6 +106,16 @@ MixedMRFModel::MixedMRFModel(
     edge_order_xx_ = arma::regspace<arma::uvec>(0, num_pairwise_xx_ - 1);
     edge_order_yy_ = arma::regspace<arma::uvec>(0, num_pairwise_yy_ - 1);
     edge_order_xy_ = arma::regspace<arma::uvec>(0, num_cross_ - 1);
+
+    // Detect sparse initial graph (constraints without edge selection)
+    if(!edge_selection_) {
+        size_t max_edges = num_pairwise_xx_ + num_pairwise_yy_ + num_cross_;
+        size_t num_edges = 0;
+        for(size_t i = 0; i < p_ + q_; ++i)
+            for(size_t j = i + 1; j < p_ + q_; ++j)
+                if(edge_indicators_(i, j) == 1) num_edges++;
+        has_sparse_graph_ = (num_edges < max_edges);
+    }
 }
 
 
@@ -120,6 +132,7 @@ MixedMRFModel::MixedMRFModel(const MixedMRFModel& other)
       num_pairwise_xx_(other.num_pairwise_xx_),
       num_pairwise_yy_(other.num_pairwise_yy_),
       num_cross_(other.num_cross_),
+      num_cholesky_(other.num_cholesky_),
       discrete_observations_(other.discrete_observations_),
       discrete_observations_dbl_(other.discrete_observations_dbl_),
       continuous_observations_(other.continuous_observations_),
@@ -164,7 +177,15 @@ MixedMRFModel::MixedMRFModel(const MixedMRFModel& other)
       cont_vf2_(other.cont_vf2_),
       cont_u1_(other.cont_u1_),
       cont_u2_(other.cont_u2_),
+      discrete_observations_dbl_t_(other.discrete_observations_dbl_t_),
       gradient_cache_valid_(false),
+      chol_constraint_structure_(other.chol_constraint_structure_),
+      excluded_kxx_indices_(other.excluded_kxx_indices_),
+      excluded_kxy_indices_(other.excluded_kxy_indices_),
+      chol_block_offset_(other.chol_block_offset_),
+      constraint_dirty_(other.constraint_dirty_),
+      has_sparse_graph_(other.has_sparse_graph_),
+      pcg_lambda_cache_(other.pcg_lambda_cache_),
       use_marginal_pl_(other.use_marginal_pl_),
       rng_(other.rng_),
       edge_order_xx_(other.edge_order_xx_),
@@ -245,25 +266,442 @@ void MixedMRFModel::recompute_marginal_interactions() {
 
 
 // =============================================================================
+// Constraint structure (RATTLE)
+// =============================================================================
+
+void MixedMRFModel::ensure_constraint_structure() {
+    if(!constraint_dirty_) return;
+
+    // --- Cholesky constraints (Gyy block) ---
+    // Extract q x q sub-block of edge_indicators_ for the continuous-continuous edges
+    arma::imat gyy_indicators(q_, q_, arma::fill::ones);
+    for(size_t i = 0; i < q_; ++i) {
+        for(size_t j = i + 1; j < q_; ++j) {
+            int val = edge_indicators_(p_ + i, p_ + j);
+            gyy_indicators(i, j) = val;
+            gyy_indicators(j, i) = val;
+        }
+    }
+    chol_constraint_structure_.build(gyy_indicators);
+
+    // --- Excluded Kxx indices in full-space vector ---
+    excluded_kxx_indices_.clear();
+    size_t kxx_offset = num_main_;
+    size_t idx = 0;
+    for(size_t i = 0; i < p_ - 1; ++i) {
+        for(size_t j = i + 1; j < p_; ++j) {
+            if(gxx(i, j) == 0) {
+                excluded_kxx_indices_.push_back(kxx_offset + idx);
+            }
+            idx++;
+        }
+    }
+
+    // --- Excluded Kxy indices in full-space vector ---
+    excluded_kxy_indices_.clear();
+    size_t kxy_offset = num_main_ + num_pairwise_xx_ + q_;
+    idx = 0;
+    for(size_t i = 0; i < p_; ++i) {
+        for(size_t j = 0; j < q_; ++j) {
+            if(gxy(i, j) == 0) {
+                excluded_kxy_indices_.push_back(kxy_offset + idx);
+            }
+            idx++;
+        }
+    }
+
+    // --- Cholesky block offset ---
+    chol_block_offset_ = num_main_ + num_pairwise_xx_ + q_ + num_cross_;
+
+    constraint_dirty_ = false;
+}
+
+
+// =============================================================================
+// RATTLE full-position accessors
+// =============================================================================
+
+arma::vec MixedMRFModel::get_full_position() const {
+    if(constraint_dirty_) {
+        const_cast<MixedMRFModel*>(this)->ensure_constraint_structure();
+    }
+    // Same layout as get_full_vectorized_parameters() — already exists
+    return get_full_vectorized_parameters();
+}
+
+void MixedMRFModel::set_full_position(const arma::vec& x) {
+    if(constraint_dirty_) {
+        ensure_constraint_structure();
+    }
+    // Unpack: same layout as get_full_vectorized_parameters() / set_vectorized_parameters()
+    // but always full dimension (edge_selection_active_ ignored).
+    size_t idx = 0;
+
+    // 1. main_effects_discrete_
+    for(size_t s = 0; s < p_; ++s) {
+        if(is_ordinal_variable_(s)) {
+            for(int c = 0; c < num_categories_(s); ++c) {
+                main_effects_discrete_(s, c) = x(idx++);
+            }
+        } else {
+            main_effects_discrete_(s, 0) = x(idx++);
+            main_effects_discrete_(s, 1) = x(idx++);
+        }
+    }
+
+    // 2. pairwise_effects_discrete_ upper-triangular (all entries)
+    for(size_t i = 0; i < p_ - 1; ++i) {
+        for(size_t j = i + 1; j < p_; ++j) {
+            pairwise_effects_discrete_(i, j) = x(idx);
+            pairwise_effects_discrete_(j, i) = x(idx);
+            idx++;
+        }
+    }
+
+    // 3. main_effects_continuous_
+    for(size_t j = 0; j < q_; ++j) {
+        main_effects_continuous_(j) = x(idx++);
+    }
+
+    // 4. pairwise_effects_cross_ row-major (all entries)
+    for(size_t i = 0; i < p_; ++i) {
+        for(size_t j = 0; j < q_; ++j) {
+            pairwise_effects_cross_(i, j) = x(idx++);
+        }
+    }
+
+    // 5. Cholesky of precision: column-by-column
+    for(size_t j = 0; j < q_; ++j) {
+        for(size_t i = 0; i < j; ++i) {
+            cholesky_of_precision_(i, j) = x(idx++);
+        }
+        cholesky_of_precision_(j, j) = std::exp(x(idx++));
+        for(size_t i = j + 1; i < q_; ++i) {
+            cholesky_of_precision_(i, j) = 0.0;
+        }
+    }
+
+    // Reconstruct precision and derived matrices from Cholesky
+    arma::mat precision = cholesky_of_precision_.t() * cholesky_of_precision_;
+    pairwise_effects_continuous_ = -0.5 * precision;
+    bool ok = arma::solve(inv_cholesky_of_precision_,
+                          arma::trimatu(cholesky_of_precision_),
+                          arma::eye(q_, q_), arma::solve_opts::fast);
+    if(!ok) {
+        recompute_pairwise_effects_continuous_decomposition();
+    } else {
+        covariance_continuous_ = inv_cholesky_of_precision_ *
+                                 inv_cholesky_of_precision_.t();
+        log_det_precision_ = 2.0 * arma::sum(arma::log(
+            cholesky_of_precision_.diag()));
+    }
+
+    recompute_conditional_mean();
+    if(use_marginal_pl_) {
+        recompute_marginal_interactions();
+    }
+}
+
+void MixedMRFModel::reset_projection_cache() {
+    pcg_lambda_cache_.reset();
+}
+
+
+// =============================================================================
+// SHAKE position projection
+// =============================================================================
+// Two independent phases:
+//   Phase 1: zero excluded Kxx and Kxy entries (trivial)
+//   Phase 2: column-by-column Cholesky projection for Gyy
+//            (same algorithm as GGMModel::project_position)
+// =============================================================================
+
+void MixedMRFModel::project_position(arma::vec& x) const {
+    arma::vec ones(x.n_elem, arma::fill::ones);
+    project_position(x, ones);
+}
+
+void MixedMRFModel::project_position(arma::vec& x,
+                                      const arma::vec& inv_mass_diag) const {
+    if(constraint_dirty_) {
+        const_cast<MixedMRFModel*>(this)->ensure_constraint_structure();
+    }
+
+    // --- Phase 1: Zero excluded Kxx and Kxy entries ---
+    for(size_t idx : excluded_kxx_indices_) {
+        x(idx) = 0.0;
+    }
+    for(size_t idx : excluded_kxy_indices_) {
+        x(idx) = 0.0;
+    }
+
+    // --- Phase 2: Cholesky constraints (Gyy block) ---
+    const auto& cs = chol_constraint_structure_;
+
+    // Build working Phi from the Cholesky block of x
+    arma::mat Phi(q_, q_, arma::fill::zeros);
+    for(size_t col = 0; col < q_; ++col) {
+        size_t offset = chol_block_offset_ + cs.full_theta_offsets[col];
+        for(size_t i = 0; i < col; ++i) {
+            Phi(i, col) = x(offset + i);
+        }
+        Phi(col, col) = std::exp(x(offset + col));
+    }
+
+    arma::mat Aq_buf;
+
+    for(size_t col = 1; col < q_; ++col) {
+        const auto& cc = cs.columns[col];
+        if(cc.m_q == 0) continue;
+
+        size_t offset = chol_block_offset_ + cs.full_theta_offsets[col];
+
+        // Build A_q from working Phi (earlier columns finalized)
+        GGMGradientEngine::build_Aq(Phi, cc, col, Aq_buf);
+
+        // Current off-diagonal entries for column col
+        arma::vec x_q(col);
+        for(size_t i = 0; i < col; ++i) {
+            x_q(i) = x(offset + i);
+        }
+
+        // SHAKE: x_q -= M_q^{-1} A_q^T (A_q M_q^{-1} A_q^T)^{-1} (A_q x_q)
+        arma::vec Aq_xq = Aq_buf * x_q;
+
+        arma::vec inv_mass_q(col);
+        for(size_t i = 0; i < col; ++i) {
+            inv_mass_q(i) = inv_mass_diag(offset + i);
+        }
+
+        arma::mat Aq_scaled = Aq_buf;
+        Aq_scaled.each_row() %= inv_mass_q.t();
+        arma::mat G = Aq_scaled * Aq_buf.t();
+        arma::vec lambda = arma::solve(G, Aq_xq,
+                                       arma::solve_opts::likely_sympd);
+
+        arma::vec correction = Aq_buf.t() * lambda;
+        x_q -= inv_mass_q % correction;
+
+        // Write back
+        for(size_t i = 0; i < col; ++i) {
+            x(offset + i) = x_q(i);
+            Phi(i, col) = x_q(i);
+        }
+    }
+}
+
+
+// =============================================================================
+// RATTLE momentum projection
+// =============================================================================
+// Two independent phases:
+//   Phase 1: zero excluded Kxx and Kxy momentum entries (trivial)
+//   Phase 2: PCG-based Cholesky momentum projection for Gyy
+//            (same algorithm as GGMModel::project_momentum)
+// =============================================================================
+
+void MixedMRFModel::project_momentum(arma::vec& r, const arma::vec& x) const {
+    arma::vec ones(r.n_elem, arma::fill::ones);
+    project_momentum(r, x, ones);
+}
+
+void MixedMRFModel::project_momentum(arma::vec& r, const arma::vec& x,
+                                      const arma::vec& inv_mass_diag) const {
+    if(constraint_dirty_) {
+        const_cast<MixedMRFModel*>(this)->ensure_constraint_structure();
+    }
+
+    // --- Phase 1: Zero excluded Kxx and Kxy momentum entries ---
+    for(size_t idx : excluded_kxx_indices_) {
+        r(idx) = 0.0;
+    }
+    for(size_t idx : excluded_kxy_indices_) {
+        r(idx) = 0.0;
+    }
+
+    // --- Phase 2: Cholesky constraints (Gyy block) via PCG ---
+    const auto& cs = chol_constraint_structure_;
+
+    // Enumerate constraints
+    struct Con { size_t i, q, off_i, off_q; };
+    std::vector<Con> cons;
+    for(size_t col = 1; col < q_; ++col) {
+        const auto& cc = cs.columns[col];
+        size_t off_q = chol_block_offset_ + cs.full_theta_offsets[col];
+        for(size_t e = 0; e < cc.m_q; ++e) {
+            size_t i = cc.excluded_indices[e];
+            cons.push_back({i, col, chol_block_offset_ + cs.full_theta_offsets[i], off_q});
+        }
+    }
+    size_t m = cons.size();
+    if(m == 0) return;
+
+    // Unpack x -> Phi
+    arma::mat Phi(q_, q_, arma::fill::zeros);
+    for(size_t col = 0; col < q_; ++col) {
+        size_t offset = chol_block_offset_ + cs.full_theta_offsets[col];
+        for(size_t i = 0; i < col; ++i) {
+            Phi(i, col) = x(offset + i);
+        }
+        Phi(col, col) = std::exp(x(offset + col));
+    }
+
+    size_t d = x.n_elem;
+
+    // --- Build block-diagonal preconditioner ---
+    struct PrecBlock { arma::mat Gq_inv; size_t offset; size_t size; };
+    std::vector<PrecBlock> prec_blocks;
+    prec_blocks.reserve(q_);
+    arma::mat Aq_buf;
+
+    {
+        size_t block_offset = 0;
+        for(size_t col = 1; col < q_; ++col) {
+            const auto& cc = cs.columns[col];
+            if(cc.m_q == 0) continue;
+
+            size_t off_q = chol_block_offset_ + cs.full_theta_offsets[col];
+            GGMGradientEngine::build_Aq(Phi, cc, col, Aq_buf);
+
+            arma::mat Aq_scaled = Aq_buf;
+            for(size_t l = 0; l < col; ++l)
+                Aq_scaled.col(l) *= inv_mass_diag(off_q + l);
+            arma::mat Gq = Aq_scaled * Aq_buf.t();
+
+            // Diagonal correction: Type 2 self-interaction
+            for(size_t e = 0; e < cc.m_q; ++e) {
+                size_t i = cc.excluded_indices[e];
+                size_t off_i = chol_block_offset_ + cs.full_theta_offsets[i];
+                double diag_add = 0.0;
+                for(size_t l = 0; l < i; ++l)
+                    diag_add += Phi(l, col) * Phi(l, col) * inv_mass_diag(off_i + l);
+                double dd = Phi(i, col) * Phi(i, i);
+                diag_add += dd * dd * inv_mass_diag(off_i + i);
+                Gq(e, e) += diag_add;
+            }
+
+            prec_blocks.push_back({arma::inv_sympd(Gq), block_offset, cc.m_q});
+            block_offset += cc.m_q;
+        }
+    }
+
+    auto apply_precond = [&](const arma::vec& v, arma::vec& z) {
+        for(const auto& blk : prec_blocks) {
+            z.subvec(blk.offset, blk.offset + blk.size - 1) =
+                blk.Gq_inv * v.subvec(blk.offset, blk.offset + blk.size - 1);
+        }
+    };
+
+    // --- Sparse Jacobian operations ---
+    arma::vec scratch(d);
+
+    auto Jt_mul = [&](const arma::vec& dv) {
+        scratch.zeros();
+        for(size_t a = 0; a < m; ++a) {
+            const auto& c = cons[a];
+            double da = dv(a);
+            for(size_t l = 0; l <= c.i; ++l)
+                scratch(c.off_q + l) += Phi(l, c.i) * da;
+            for(size_t l = 0; l < c.i; ++l)
+                scratch(c.off_i + l) += Phi(l, c.q) * da;
+            scratch(c.off_i + c.i) += Phi(c.i, c.q) * Phi(c.i, c.i) * da;
+        }
+    };
+
+    auto J_mul = [&](arma::vec& result) {
+        for(size_t a = 0; a < m; ++a) {
+            const auto& c = cons[a];
+            double dot = 0.0;
+            for(size_t l = 0; l <= c.i; ++l)
+                dot += Phi(l, c.i) * scratch(c.off_q + l);
+            for(size_t l = 0; l < c.i; ++l)
+                dot += Phi(l, c.q) * scratch(c.off_i + l);
+            dot += Phi(c.i, c.q) * Phi(c.i, c.i) * scratch(c.off_i + c.i);
+            result(a) = dot;
+        }
+    };
+
+    auto G_mul = [&](const arma::vec& dv, arma::vec& result) {
+        Jt_mul(dv);
+        scratch %= inv_mass_diag;
+        J_mul(result);
+    };
+
+    // --- RHS: b = J M^{-1} r ---
+    arma::vec b(m);
+    {
+        scratch = inv_mass_diag % r;
+        J_mul(b);
+    }
+
+    // --- Preconditioned CG ---
+    arma::vec lambda(m);
+    arma::vec cg_r(m);
+    if(pcg_lambda_cache_.n_elem == m) {
+        lambda = pcg_lambda_cache_;
+        G_mul(lambda, cg_r);
+        cg_r = b - cg_r;
+    } else {
+        lambda.zeros();
+        cg_r = b;
+    }
+    arma::vec z(m);
+    apply_precond(cg_r, z);
+    arma::vec cg_d = z;
+    double rz = arma::dot(cg_r, z);
+    arma::vec Ad(m);
+
+    const double tol = 1e-26;
+    const size_t max_iter = m;
+
+    for(size_t iter = 0; iter < max_iter && arma::dot(cg_r, cg_r) > tol; ++iter) {
+        G_mul(cg_d, Ad);
+        double dAd = arma::dot(cg_d, Ad);
+        double alpha = rz / dAd;
+        lambda += alpha * cg_d;
+        cg_r -= alpha * Ad;
+        apply_precond(cg_r, z);
+        double rz_new = arma::dot(cg_r, z);
+        cg_d = z + (rz_new / rz) * cg_d;
+        rz = rz_new;
+    }
+    pcg_lambda_cache_ = lambda;
+
+    // --- Scatter: r -= J^T lambda ---
+    for(size_t a = 0; a < m; ++a) {
+        const auto& c = cons[a];
+        double lam = lambda(a);
+        for(size_t l = 0; l <= c.i; ++l)
+            r(c.off_q + l) -= Phi(l, c.i) * lam;
+        for(size_t l = 0; l < c.i; ++l)
+            r(c.off_i + l) -= Phi(l, c.q) * lam;
+        r(c.off_i + c.i) -= Phi(c.i, c.q) * Phi(c.i, c.i) * lam;
+    }
+}
+
+
+// =============================================================================
 // Parameter vectorization
 // =============================================================================
 
-// NUTS vectorization order (excludes pairwise_effects_continuous_ — sampled by MH separately):
+// NUTS vectorization order (includes Cholesky of precision):
 //   1. main_effects_discrete_: per-variable (ordinal: C_s thresholds; BC: 2 coefficients)
 //   2. pairwise_effects_discrete_: upper-triangular, row-major  — p(p-1)/2
 //   3. main_effects_continuous_: all q means
 //   4. pairwise_effects_cross_: all p*q entries, row-major
+//   5. Cholesky of precision: column-by-column, each column j has j off-diagonal
+//      entries R_{0j},...,R_{(j-1)j} followed by ψ_j = log(R_{jj}) — q(q+1)/2
 //
-// Storage vectorization order (includes pairwise_effects_continuous_):
-//   1–4. Same as NUTS order
+// Storage vectorization order (stores pairwise_effects_continuous_ = -Ω/2):
+//   1–4. Same as NUTS order (Cholesky block NOT stored — A_yy entries stored instead)
 //   5. pairwise_effects_continuous_: upper-triangle including diagonal — q(q+1)/2
 
 size_t MixedMRFModel::parameter_dimension() const {
     if(!edge_selection_active_) {
         return full_parameter_dimension();
     }
-    // Count active NUTS parameters only (no pairwise_effects_continuous_)
-    size_t dim = num_main_ + q_;  // main effects always active
+    // Active NUTS parameters + full Cholesky block
+    size_t dim = num_main_ + q_ + (q_ * (q_ + 1)) / 2;
 
     // Active pairwise_effects_discrete_ edges
     for(size_t i = 0; i < p_ - 1; ++i) {
@@ -283,8 +721,8 @@ size_t MixedMRFModel::parameter_dimension() const {
 }
 
 size_t MixedMRFModel::full_parameter_dimension() const {
-    // NUTS block: main + pairwise_discrete upper-tri + means + pairwise_cross (no precision)
-    return num_main_ + num_pairwise_xx_ + q_ + num_cross_;
+    // All NUTS params + Cholesky block
+    return num_main_ + num_pairwise_xx_ + q_ + num_cross_ + (q_ * (q_ + 1)) / 2;
 }
 
 size_t MixedMRFModel::storage_dimension() const {
@@ -294,7 +732,6 @@ size_t MixedMRFModel::storage_dimension() const {
 }
 
 arma::vec MixedMRFModel::get_vectorized_parameters() const {
-    // Active NUTS parameters only (excludes precision, excludes inactive edges)
     arma::vec out(parameter_dimension());
     size_t idx = 0;
 
@@ -333,11 +770,19 @@ arma::vec MixedMRFModel::get_vectorized_parameters() const {
         }
     }
 
+    // 5. Cholesky of precision: column-by-column (off-diagonal R_ij, then ψ_j = log R_jj)
+    for(size_t j = 0; j < q_; ++j) {
+        for(size_t i = 0; i < j; ++i) {
+            out(idx++) = cholesky_of_precision_(i, j);
+        }
+        out(idx++) = std::log(cholesky_of_precision_(j, j));
+    }
+
     return out;
 }
 
 arma::vec MixedMRFModel::get_full_vectorized_parameters() const {
-    // All NUTS parameters, fixed size (inactive edges are 0, no precision)
+    // All NUTS parameters + Cholesky, fixed size (inactive edges zeroed)
     arma::vec out(full_parameter_dimension(), arma::fill::zeros);
     size_t idx = 0;
 
@@ -370,6 +815,14 @@ arma::vec MixedMRFModel::get_full_vectorized_parameters() const {
         for(size_t j = 0; j < q_; ++j) {
             out(idx++) = pairwise_effects_cross_(i, j);
         }
+    }
+
+    // 5. Cholesky of precision: column-by-column
+    for(size_t j = 0; j < q_; ++j) {
+        for(size_t i = 0; i < j; ++i) {
+            out(idx++) = cholesky_of_precision_(i, j);
+        }
+        out(idx++) = std::log(cholesky_of_precision_(j, j));
     }
 
     return out;
@@ -422,7 +875,6 @@ arma::vec MixedMRFModel::get_storage_vectorized_parameters() const {
 }
 
 void MixedMRFModel::set_vectorized_parameters(const arma::vec& params) {
-    // Unpack NUTS block only (no pairwise_effects_continuous_)
     size_t idx = 0;
 
     // 1. main_effects_discrete_
@@ -462,7 +914,35 @@ void MixedMRFModel::set_vectorized_parameters(const arma::vec& params) {
         }
     }
 
-    // Refresh caches (precision unchanged, so no decomposition update needed)
+    // 5. Cholesky of precision: column-by-column
+    for(size_t j = 0; j < q_; ++j) {
+        for(size_t i = 0; i < j; ++i) {
+            cholesky_of_precision_(i, j) = params(idx++);
+        }
+        cholesky_of_precision_(j, j) = std::exp(params(idx++));
+        // Zero below diagonal (upper triangular)
+        for(size_t i = j + 1; i < q_; ++i) {
+            cholesky_of_precision_(i, j) = 0.0;
+        }
+    }
+
+    // Reconstruct precision and derived matrices from Cholesky
+    arma::mat precision = cholesky_of_precision_.t() * cholesky_of_precision_;
+    pairwise_effects_continuous_ = -0.5 * precision;
+    bool ok = arma::solve(inv_cholesky_of_precision_,
+                          arma::trimatu(cholesky_of_precision_),
+                          arma::eye(q_, q_), arma::solve_opts::fast);
+    if(!ok) {
+        // Fallback: recompute from scratch
+        recompute_pairwise_effects_continuous_decomposition();
+    } else {
+        covariance_continuous_ = inv_cholesky_of_precision_ *
+                                 inv_cholesky_of_precision_.t();
+        log_det_precision_ = 2.0 * arma::sum(arma::log(
+            cholesky_of_precision_.diag()));
+    }
+
+    // Refresh caches
     recompute_conditional_mean();
     if(use_marginal_pl_) {
         recompute_marginal_interactions();
@@ -504,6 +984,12 @@ arma::vec MixedMRFModel::get_active_inv_mass() const {
             }
             offset_full++;
         }
+    }
+
+    // Cholesky block: always full size, pass through
+    size_t num_chol = (q_ * (q_ + 1)) / 2;
+    for(size_t k = 0; k < num_chol; ++k) {
+        active(offset_active++) = inv_mass_(offset_full++);
     }
 
     return active;

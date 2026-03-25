@@ -180,7 +180,7 @@ summarize_indicator = function(fit, component = c("indicator_samples"), param_na
 }
 
 # Summarize slab values where indicators are 1
-summarize_slab = function(fit, component = c("pairwise_samples"), param_names = NULL, array3d = NULL) {
+summarize_slab = function(fit, component = c("pairwise_samples"), param_names = NULL, array3d = NULL, array3d_ind = NULL) {
   component = match.arg(component) # Add options later
   if(is.null(array3d)) array3d = combine_chains(fit, component)
   nparam = dim(array3d)[3]
@@ -190,8 +190,12 @@ summarize_slab = function(fit, component = c("pairwise_samples"), param_names = 
   for(j in seq_len(nparam)) {
     draws = array3d[, , j]
     vec = as.vector(draws)
-    nonzero = vec != 0
-    vec = vec[nonzero]
+    if(!is.null(array3d_ind)) {
+      selected = as.vector(array3d_ind[, , j]) == 1
+    } else {
+      selected = vec != 0
+    }
+    vec = vec[selected]
     n_total = length(vec)
 
     if(n_total >= 1) {
@@ -230,7 +234,7 @@ summarize_pair = function(fit,
   if(is.null(array3d_id)) array3d_id = combine_chains(fit, indicator_component)
   if(is.null(array3d_pw)) array3d_pw = combine_chains(fit, slab_component)
   if(is.null(summ_ind)) summ_ind = summarize_indicator(fit, component = indicator_component, array3d = array3d_id)
-  if(is.null(summ_slab)) summ_slab = summarize_slab(fit, component = slab_component, array3d = array3d_pw)
+  if(is.null(summ_slab)) summ_slab = summarize_slab(fit, component = slab_component, array3d = array3d_pw, array3d_ind = array3d_id)
   nparam = nrow(summ_ind)
 
   # EAP = indicator_mean * slab_mean.
@@ -277,7 +281,7 @@ summarize_fit = function(fit, edge_selection = FALSE) {
 
   # Compute indicator and slab summaries once
   ind_summary = summarize_indicator(fit, component = "indicator_samples", array3d = array3d_ind)
-  slab_summary = summarize_slab(fit, component = "pairwise_samples", array3d = array3d_pw)
+  slab_summary = summarize_slab(fit, component = "pairwise_samples", array3d = array3d_pw, array3d_ind = array3d_ind)
 
   all_selected = ind_summary$mean == 1
 

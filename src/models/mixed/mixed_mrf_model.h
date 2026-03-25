@@ -3,6 +3,8 @@
 #include <array>
 #include <memory>
 #include "models/base_model.h"
+#include "models/ggm/graph_constraint_structure.h"
+#include "models/ggm/ggm_gradient.h"
 #include "math/cholesky_helpers.h"
 #include "math/cholupdate.h"
 #include "rng/rng_utils.h"
@@ -90,6 +92,8 @@ public:
     bool has_edge_selection() const override { return edge_selection_; }
     /** @return true when missing-data imputation is active. */
     bool has_missing_data() const override { return has_missing_; }
+    /** @return true when edge selection or a sparse graph requires RATTLE projection. */
+    bool has_constraints() const override { return edge_selection_ || has_sparse_graph_; }
 
     // =========================================================================
     // Core sampling methods
@@ -163,40 +167,70 @@ public:
     // =========================================================================
 
     /**
-     * Dimensionality of the active NUTS parameter space (excludes precision).
-     * When edge selection is active, excludes parameters for inactive edges.
+     * Dimensionality of the active NUTS parameter space.
+     * Includes Cholesky entries for the continuous precision (always full q(q+1)/2).
+     * When edge selection is active, excludes discrete/cross parameters for inactive edges.
      */
     size_t parameter_dimension() const override;
 
     /**
-     * Full NUTS-block dimension (all NUTS params, regardless of edge state).
-     * Excludes continuous precision. Used for mass-matrix sizing and adaptation.
+     * Full NUTS dimension (all params regardless of edge state).
+     * Includes q(q+1)/2 Cholesky entries. Used for mass-matrix sizing.
      */
     size_t full_parameter_dimension() const override;
 
     /**
-     * Storage dimension (all parameters including continuous precision,
-     * regardless of edge state). Used for fixed-size sample storage.
+     * Storage dimension (all parameters including continuous precision
+     * as A_yy entries, regardless of edge state). Used for sample storage.
      */
     size_t storage_dimension() const override;
 
-    /** Get active NUTS parameters as a flat vector (excludes precision). */
+    /** Get active NUTS parameters as a flat vector (includes Cholesky block). */
     arma::vec get_vectorized_parameters() const override;
 
-    /** Get all NUTS parameters (inactive edges zeroed, excludes precision). */
+    /** Get all NUTS parameters (inactive edges zeroed, includes Cholesky block). */
     arma::vec get_full_vectorized_parameters() const override;
 
-    /** Get all parameters including continuous precision for sample storage. */
+    /** Get all parameters as A_yy entries for sample storage. */
     arma::vec get_storage_vectorized_parameters() const override;
 
-    /** Set NUTS parameters from a flat vector (does not touch precision). */
+    /** Set NUTS parameters from a flat vector (includes Cholesky block). */
     void set_vectorized_parameters(const arma::vec& params) override;
 
     /** Get vectorized edge indicators (Gxx upper-tri, Gyy upper-tri, Gxy full). */
     arma::ivec get_vectorized_indicator_parameters() override;
 
-    /** Get active subset of inverse mass diagonal (NUTS params only, excludes precision). */
+    /** Get active subset of inverse mass diagonal (includes Cholesky block). */
     arma::vec get_active_inv_mass() const override;
+
+    // =========================================================================
+    // RATTLE constrained integration
+    // =========================================================================
+
+    /** Full-dimension position: all 5 blocks, excluded edges zeroed, Cholesky column-by-column. */
+    arma::vec get_full_position() const override;
+
+    /** Set model state from full-dimension RATTLE position vector. */
+    void set_full_position(const arma::vec& x) override;
+
+    /** Full-space log-posterior and gradient for RATTLE (zeros at excluded edge slots). */
+    std::pair<double, arma::vec> logp_and_gradient_full(const arma::vec& x) override;
+
+    /** SHAKE: project position onto the constraint manifold. */
+    void project_position(arma::vec& x) const override;
+
+    /** SHAKE: mass-weighted position projection. */
+    void project_position(arma::vec& x, const arma::vec& inv_mass_diag) const override;
+
+    /** RATTLE: project momentum onto the cotangent space (identity mass). */
+    void project_momentum(arma::vec& r, const arma::vec& x) const override;
+
+    /** RATTLE: mass-weighted momentum projection via preconditioned CG. */
+    void project_momentum(arma::vec& r, const arma::vec& x,
+                          const arma::vec& inv_mass_diag) const override;
+
+    /** Reset PCG warm-start cache (called after edge indicator changes). */
+    void reset_projection_cache() override;
 
     // =========================================================================
     // Infrastructure
@@ -263,6 +297,7 @@ private:
     size_t num_pairwise_xx_;            ///< p(p-1)/2
     size_t num_pairwise_yy_;            ///< q(q-1)/2
     size_t num_cross_;                  ///< p * q
+    size_t num_cholesky_ = 0;           ///< q(q+1)/2 — number of Cholesky entries
 
     // =========================================================================
     // Data
@@ -363,7 +398,27 @@ private:
     arma::imat disc_index_cache_;        ///< p x p map from (i,j) to gradient index
     arma::imat cross_index_cache_;        ///< p x q map from (i,j) to gradient index
     int main_effects_continuous_grad_offset_ = 0;           ///< Offset of main_effects_continuous block in gradient vector
+    int chol_grad_offset_ = 0;          ///< Offset of Cholesky block in gradient vector
     bool gradient_cache_valid_ = false; ///< Whether gradient cache is current
+
+    // =========================================================================
+    // RATTLE constraint structure
+    // =========================================================================
+
+    /// Cholesky constraint structure (per-column excluded/included for Gyy block).
+    GraphConstraintStructure chol_constraint_structure_;
+    /// Flat indices into full-space vector for excluded Kxx entries.
+    std::vector<size_t> excluded_kxx_indices_;
+    /// Flat indices into full-space vector for excluded Kxy entries.
+    std::vector<size_t> excluded_kxy_indices_;
+    /// Offset of Cholesky block (Block 5) in the full-space vector.
+    size_t chol_block_offset_ = 0;
+    /// Whether constraint structure needs rebuilding.
+    bool constraint_dirty_ = true;
+    /// Whether initial graph is sparse (constraints without edge selection).
+    bool has_sparse_graph_ = false;
+    /// PCG warm-start cache for RATTLE momentum projection.
+    mutable arma::vec pcg_lambda_cache_;
 
     // =========================================================================
     // Configuration
@@ -398,6 +453,9 @@ private:
 
     /** Recompute marginal_interactions_ from pairwise_effects_discrete_, pairwise_effects_cross_, covariance_continuous_ (marginal PL only). */
     void recompute_marginal_interactions();
+
+    /** Rebuild Cholesky constraint structure and excluded-edge index lists. */
+    void ensure_constraint_structure();
 
     // =========================================================================
     // Gradient helpers (implemented in mixed_mrf_gradient.cpp)

@@ -274,6 +274,9 @@ build_output_bgm = function(spec, raw) {
       if(!is.null(chain$allocation_samples)) {
         res$allocations = t(chain$allocation_samples)
       }
+      if(!is.null(chain$treedepth)) res[["treedepth__"]] = chain$treedepth
+      if(!is.null(chain$divergent)) res[["divergent__"]] = chain$divergent
+      if(!is.null(chain$energy)) res[["energy__"]] = chain$energy
       res
     })
   } else {
@@ -771,7 +774,7 @@ build_output_mixed_mrf = function(spec, raw) {
   )
 
   # --- NUTS diagnostics -------------------------------------------------------
-  if(s$update_method == "hybrid-nuts") {
+  if(s$update_method %in% c("nuts", "hybrid-nuts")) {
     results$nuts_diag = summarize_nuts_diagnostics(
       raw,
       nuts_max_depth = s$nuts_max_depth
