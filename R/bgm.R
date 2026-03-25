@@ -280,6 +280,9 @@
 #'       The shrinkage parameter \eqn{\lambda} is sampled from its full
 #'       conditional at every MCMC sweep and stored alongside the precision
 #'       samples.}
+#'     \item{\code{"normal"}}{Normal(0, \code{pairwise_scale}) prior on
+#'       each off-diagonal element, where \code{pairwise_scale} is used as
+#'       the standard deviation.}
 #'   }
 #'   Default: \code{"cauchy"}.
 #'
@@ -344,6 +347,22 @@
 #'   `r lifecycle::badge("deprecated")`
 #'   Deprecated arguments as of \strong{bgms 0.1.6.0}.
 #'   Use `pairwise_scale`, `warmup`, `main_alpha`, and `main_beta` instead.
+#'
+#' @param prior_only Logical. If \code{TRUE}, sample from the prior
+#'   distribution only (no data likelihood). The \code{graph} argument must
+#'   be supplied. Edge selection is disabled and the graph structure is held
+#'   fixed. Only GGM models are supported. Default: \code{FALSE}.
+#'
+#' @param graph Integer matrix. Adjacency matrix specifying the graph
+#'   structure (symmetric, with 0/1 entries). Required when
+#'   \code{prior_only = TRUE}; ignored otherwise.
+#'
+#' @param diagonal_prior Character. Prior on diagonal precision matrix
+#'   elements. Currently only \code{"exponential"} is supported.
+#'   Default: \code{"exponential"}.
+#'
+#' @param diagonal_prior_rate Double. Rate parameter for the exponential
+#'   prior on diagonal elements. Default: \code{1}.
 #'
 #' @return
 #' A list of class \code{"bgms"} with posterior summaries, posterior mean
@@ -460,7 +479,7 @@ bgm = function(
   beta_bernoulli_beta_between = 1,
   dirichlet_alpha = 1,
   lambda = 1,
-  pairwise_prior = c("cauchy", "blasso"),
+  pairwise_prior = c("cauchy", "blasso", "normal"),
   blasso_shape = 2,
   blasso_rate = 0.1,
   na_action = c("listwise", "impute"),
@@ -476,6 +495,10 @@ bgm = function(
   standardize = FALSE,
   pseudolikelihood = c("conditional", "marginal"),
   verbose = getOption("bgms.verbose", TRUE),
+  prior_only = FALSE,
+  graph = NULL,
+  diagonal_prior = "exponential",
+  diagonal_prior_rate = 1,
   interaction_scale,
   burnin,
   save,
@@ -488,71 +511,100 @@ bgm = function(
   options(bgms.verbose = verbose)
   on.exit(options(bgms.verbose = old_verbose), add = TRUE)
 
-  if(hasArg(interaction_scale)) {
-    lifecycle::deprecate_warn("0.1.6.0", "bgm(interaction_scale =)", "bgm(pairwise_scale =)")
-    if(!hasArg(pairwise_scale)) {
+  if (hasArg(interaction_scale)) {
+    lifecycle::deprecate_warn(
+      "0.1.6.0",
+      "bgm(interaction_scale =)",
+      "bgm(pairwise_scale =)"
+    )
+    if (!hasArg(pairwise_scale)) {
       pairwise_scale = interaction_scale
     }
   }
 
-  if(hasArg(burnin)) {
+  if (hasArg(burnin)) {
     lifecycle::deprecate_warn("0.1.6.0", "bgm(burnin =)", "bgm(warmup =)")
-    if(!hasArg(warmup)) {
+    if (!hasArg(warmup)) {
       warmup = burnin
     }
   }
 
-  if(hasArg(save)) {
+  if (hasArg(save)) {
     lifecycle::deprecate_warn("0.1.6.0", "bgm(save =)")
   }
 
-  if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
+  if (hasArg(threshold_alpha) || hasArg(threshold_beta)) {
     lifecycle::deprecate_warn(
       "0.1.6.0",
       "bgm(threshold_alpha =, threshold_beta =)",
       "bgm(main_alpha =, main_beta =)"
     )
-    if(!hasArg(main_alpha)) main_alpha = threshold_alpha
-    if(!hasArg(main_beta)) main_beta = threshold_beta
+    if (!hasArg(main_alpha)) {
+      main_alpha = threshold_alpha
+    }
+    if (!hasArg(main_beta)) main_beta = threshold_beta
   }
 
   # --- Build spec, sample, build output ----------------------------------------
-  spec = bgm_spec(
-    x = x,
-    model_type = "omrf",
-    variable_type = variable_type,
-    baseline_category = if(hasArg(baseline_category)) baseline_category else 0L,
-    na_action = na_action,
-    pairwise_scale = pairwise_scale,
-    main_alpha = main_alpha,
-    main_beta = main_beta,
-    standardize = standardize,
-    edge_selection = edge_selection,
-    edge_prior = edge_prior,
-    inclusion_probability = inclusion_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
-    beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
-    beta_bernoulli_beta_between = beta_bernoulli_beta_between,
-    dirichlet_alpha = dirichlet_alpha,
-    lambda = lambda,
-    pairwise_prior = pairwise_prior,
-    blasso_shape = blasso_shape,
-    blasso_rate = blasso_rate,
-    update_method = update_method,
-    target_accept = if(hasArg(target_accept)) target_accept else NULL,
-    iter = iter,
-    warmup = warmup,
-    hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth = nuts_max_depth,
-    learn_mass_matrix = learn_mass_matrix,
-    chains = chains,
-    cores = cores,
-    seed = seed,
-    display_progress = display_progress,
-    verbose = verbose,
-    pseudolikelihood = pseudolikelihood
-  )
+  if (prior_only) {
+    spec = bgm_spec_prior_only(
+      graph = graph,
+      pairwise_prior = pairwise_prior,
+      pairwise_scale = pairwise_scale,
+      blasso_shape = blasso_shape,
+      blasso_rate = blasso_rate,
+      diagonal_prior = diagonal_prior,
+      diagonal_prior_rate = diagonal_prior_rate,
+      iter = iter,
+      warmup = warmup,
+      chains = chains,
+      cores = cores,
+      seed = seed,
+      display_progress = display_progress,
+      verbose = verbose
+    )
+  } else {
+    spec = bgm_spec(
+      x = x,
+      model_type = "omrf",
+      variable_type = variable_type,
+      baseline_category = if (hasArg(baseline_category)) {
+        baseline_category
+      } else {
+        0L
+      },
+      na_action = na_action,
+      pairwise_scale = pairwise_scale,
+      main_alpha = main_alpha,
+      main_beta = main_beta,
+      standardize = standardize,
+      edge_selection = edge_selection,
+      edge_prior = edge_prior,
+      inclusion_probability = inclusion_probability,
+      beta_bernoulli_alpha = beta_bernoulli_alpha,
+      beta_bernoulli_beta = beta_bernoulli_beta,
+      beta_bernoulli_alpha_between = beta_bernoulli_alpha_between,
+      beta_bernoulli_beta_between = beta_bernoulli_beta_between,
+      dirichlet_alpha = dirichlet_alpha,
+      lambda = lambda,
+      pairwise_prior = pairwise_prior,
+      blasso_shape = blasso_shape,
+      blasso_rate = blasso_rate,
+      update_method = update_method,
+      target_accept = if (hasArg(target_accept)) target_accept else NULL,
+      iter = iter,
+      warmup = warmup,
+      hmc_num_leapfrogs = hmc_num_leapfrogs,
+      nuts_max_depth = nuts_max_depth,
+      learn_mass_matrix = learn_mass_matrix,
+      chains = chains,
+      cores = cores,
+      seed = seed,
+      display_progress = display_progress,
+      verbose = verbose,
+      pseudolikelihood = pseudolikelihood
+    )
+  }
 
   raw = run_sampler(spec)
   output = build_output(spec, raw)

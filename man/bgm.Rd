@@ -22,6 +22,9 @@ bgm(
   beta_bernoulli_beta_between = 1,
   dirichlet_alpha = 1,
   lambda = 1,
+  pairwise_prior = c("cauchy", "blasso", "normal"),
+  blasso_shape = 2,
+  blasso_rate = 0.1,
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
@@ -35,6 +38,10 @@ bgm(
   standardize = FALSE,
   pseudolikelihood = c("conditional", "marginal"),
   verbose = getOption("bgms.verbose", TRUE),
+  prior_only = FALSE,
+  graph = NULL,
+  diagonal_prior = "exponential",
+  diagonal_prior_rate = 1,
   interaction_scale,
   burnin,
   save,
@@ -104,6 +111,35 @@ Default: \code{1}.}
 
 \item{lambda}{Double. Rate of the zero-truncated Poisson prior on the
 number of clusters in the Stochastic Block Model. Default: \code{1}.}
+
+\item{pairwise_prior}{Character. Specifies the prior on off-diagonal
+precision matrix elements (continuous variables only). Options:
+\describe{
+\item{\code{"cauchy"}}{Half-Cauchy slab prior with scale
+\code{pairwise_scale}. The default.}
+\item{\code{"blasso"}}{Bayesian Lasso (double-exponential) prior.
+Places a Laplace(\eqn{\lambda}) prior on each off-diagonal element:
+\deqn{p(\omega_{ij} \mid \lambda) = \frac{\lambda}{2}
+        \exp(-\lambda |\omega_{ij}|),}
+with a Gamma hyperprior on \eqn{\lambda^{2}}:
+\deqn{\lambda^{2} \sim
+        \textrm{Gamma}(\code{blasso\_shape}, \code{blasso\_rate}).}
+The shrinkage parameter \eqn{\lambda} is sampled from its full
+conditional at every MCMC sweep and stored alongside the precision
+samples.}
+\item{\code{"normal"}}{Normal(0, \code{pairwise_scale}) prior on
+each off-diagonal element, where \code{pairwise_scale} is used as
+the standard deviation.}
+}
+Default: \code{"cauchy"}.}
+
+\item{blasso_shape}{Double. Shape parameter of the
+Gamma(\code{blasso_shape}, \code{blasso_rate}) hyperprior on
+\eqn{\lambda^{2}} in the Bayesian Lasso prior. Default: \code{2}.}
+
+\item{blasso_rate}{Double. Rate parameter of the
+Gamma(\code{blasso_shape}, \code{blasso_rate}) hyperprior on
+\eqn{\lambda^{2}} in the Bayesian Lasso prior. Default: \code{0.1}.}
 
 \item{na_action}{Character. Specifies missing data handling. Either
 \code{"listwise"} (drop rows with missing values) or \code{"impute"}
@@ -189,6 +225,22 @@ Default: \code{"conditional"}.}
 during data processing (e.g., missing data handling, variable recoding).
 Defaults to \code{getOption("bgms.verbose", TRUE)}. Set
 \code{options(bgms.verbose = FALSE)} to suppress messages globally.}
+
+\item{prior_only}{Logical. If \code{TRUE}, sample from the prior
+distribution only (no data likelihood). The \code{graph} argument must
+be supplied. Edge selection is disabled and the graph structure is held
+fixed. Only GGM models are supported. Default: \code{FALSE}.}
+
+\item{graph}{Integer matrix. Adjacency matrix specifying the graph
+structure (symmetric, with 0/1 entries). Required when
+\code{prior_only = TRUE}; ignored otherwise.}
+
+\item{diagonal_prior}{Character. Prior on diagonal precision matrix
+elements. Currently only \code{"exponential"} is supported.
+Default: \code{"exponential"}.}
+
+\item{diagonal_prior_rate}{Double. Rate parameter for the exponential
+prior on diagonal elements. Default: \code{1}.}
 
 \item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
 Deprecated arguments as of \strong{bgms 0.1.6.0}.

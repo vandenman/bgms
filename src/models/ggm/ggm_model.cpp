@@ -179,8 +179,8 @@ void GGMModel::update_diagonal_parameter(size_t i, int iteration) {
 
     double ln_alpha = log_density_impl_diag(i);
 
-    ln_alpha += R::dgamma(MY_EXP(theta_prop), 1.0, 1.0, true);
-    ln_alpha -= R::dgamma(MY_EXP(theta_curr), 1.0, 1.0, true);
+    ln_alpha += diagonal_prior_->log_density(MY_EXP(theta_prop));
+    ln_alpha -= diagonal_prior_->log_density(MY_EXP(theta_curr));
     ln_alpha += theta_prop - theta_curr; // Jacobian adjustment
 
     if (MY_LOG(runif(rng_)) < ln_alpha) {
@@ -447,8 +447,13 @@ GGMModel createGGMModelFromR(
     const arma::imat& initial_edge_indicators,
     const bool edge_selection,
     std::unique_ptr<BasePairwisePrior> pairwise_prior,
-    const bool na_impute
+    const bool na_impute,
+    std::unique_ptr<BaseDiagonalPrior> diagonal_prior
 ) {
+
+    if (!diagonal_prior) {
+        diagonal_prior = std::make_unique<ExponentialDiagonalPrior>(1.0);
+    }
 
     if (inputFromR.containsElementNamed("n") && inputFromR.containsElementNamed("suf_stat")) {
         int n = Rcpp::as<int>(inputFromR["n"]);
@@ -459,7 +464,8 @@ GGMModel createGGMModelFromR(
             prior_inclusion_prob,
             initial_edge_indicators,
             edge_selection,
-            std::move(pairwise_prior)
+            std::move(pairwise_prior),
+            std::move(diagonal_prior)
         );
     } else if (inputFromR.containsElementNamed("X")) {
         arma::mat X = Rcpp::as<arma::mat>(inputFromR["X"]);
@@ -469,7 +475,8 @@ GGMModel createGGMModelFromR(
             initial_edge_indicators,
             edge_selection,
             std::move(pairwise_prior),
-            na_impute
+            na_impute,
+            std::move(diagonal_prior)
         );
     } else {
         throw std::invalid_argument("Input list must contain either 'X' or both 'n' and 'suf_stat'.");

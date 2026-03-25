@@ -6,6 +6,7 @@
 #include "math/cholesky_helpers.h"
 #include "rng/rng_utils.h"
 #include "priors/pairwise_prior.h"
+#include "priors/diagonal_prior.h"
 
 
 /**
@@ -41,7 +42,8 @@ public:
             const arma::imat& initial_edge_indicators,
             const bool edge_selection,
             std::unique_ptr<BasePairwisePrior> pairwise_prior,
-            const bool na_impute = false
+            const bool na_impute = false,
+            std::unique_ptr<BaseDiagonalPrior> diagonal_prior = nullptr
     ) : n_(observations.n_rows),
         p_(observations.n_cols),
         dim_((p_ * (p_ + 1)) / 2),
@@ -49,6 +51,7 @@ public:
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
         pairwise_prior_(std::move(pairwise_prior)),
+        diagonal_prior_(diagonal_prior ? std::move(diagonal_prior) : std::make_unique<ExponentialDiagonalPrior>(1.0)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -80,7 +83,8 @@ public:
             const arma::mat& inclusion_probability,
             const arma::imat& initial_edge_indicators,
             const bool edge_selection,
-            std::unique_ptr<BasePairwisePrior> pairwise_prior
+            std::unique_ptr<BasePairwisePrior> pairwise_prior,
+            std::unique_ptr<BaseDiagonalPrior> diagonal_prior = nullptr
     ) : n_(n),
         p_(suf_stat.n_cols),
         dim_((p_ * (p_ + 1)) / 2),
@@ -88,6 +92,7 @@ public:
         inclusion_probability_(inclusion_probability),
         edge_selection_(edge_selection),
         pairwise_prior_(std::move(pairwise_prior)),
+        diagonal_prior_(diagonal_prior ? std::move(diagonal_prior) : std::make_unique<ExponentialDiagonalPrior>(1.0)),
         precision_matrix_(arma::eye<arma::mat>(p_, p_)),
         cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
         inv_cholesky_of_precision_(arma::eye<arma::mat>(p_, p_)),
@@ -109,6 +114,7 @@ public:
           inclusion_probability_(other.inclusion_probability_),
           edge_selection_(other.edge_selection_),
           pairwise_prior_(other.pairwise_prior_->clone()),
+          diagonal_prior_(other.diagonal_prior_->clone()),
           precision_matrix_(other.precision_matrix_),
           cholesky_of_precision_(other.cholesky_of_precision_),
           inv_cholesky_of_precision_(other.inv_cholesky_of_precision_),
@@ -310,6 +316,8 @@ private:
     bool edge_selection_active_ = false;
     /// Pairwise (slab) prior on off-diagonal precision elements.
     std::unique_ptr<BasePairwisePrior> pairwise_prior_;
+    /// Prior on diagonal precision elements.
+    std::unique_ptr<BaseDiagonalPrior> diagonal_prior_;
 
     /// Precision matrix Omega, its Cholesky factor R (Omega = R'R),
     /// inverse Cholesky factor, and covariance matrix.
@@ -503,5 +511,6 @@ GGMModel createGGMModelFromR(
     const arma::imat& initial_edge_indicators,
     const bool edge_selection,
     std::unique_ptr<BasePairwisePrior> pairwise_prior,
-    const bool na_impute = false
+    const bool na_impute = false,
+    std::unique_ptr<BaseDiagonalPrior> diagonal_prior = nullptr
 );

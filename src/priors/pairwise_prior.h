@@ -145,10 +145,34 @@ private:
 
 
 /**
+ * Normal prior on precision off-diagonal elements.
+ *
+ * p(omega_ij | sd) = Normal(0, sd).
+ * No hyperparameters to update.
+ */
+class NormalPairwisePrior : public BasePairwisePrior {
+public:
+    explicit NormalPairwisePrior(double sd = 1.0)
+        : sd_(sd) {}
+
+    double log_density(double x) const override {
+        return R::dnorm(x, 0.0, sd_, true);
+    }
+
+    std::unique_ptr<BasePairwisePrior> clone() const override {
+        return std::make_unique<NormalPairwisePrior>(*this);
+    }
+
+private:
+    double sd_;
+};
+
+
+/**
  * Factory: create a pairwise prior from a type string and hyperparameters.
  *
- * @param type            "cauchy" or "blasso"
- * @param pairwise_scale  Scale parameter for Cauchy prior
+ * @param type            "cauchy", "blasso", or "normal"
+ * @param pairwise_scale  Scale parameter for Cauchy prior / SD for Normal prior
  * @param blasso_shape    Gamma shape for Bayesian Lasso hyperprior
  * @param blasso_rate     Gamma rate for Bayesian Lasso hyperprior
  */
@@ -160,6 +184,9 @@ inline std::unique_ptr<BasePairwisePrior> create_pairwise_prior(
 ) {
     if (type == "blasso") {
         return std::make_unique<LaplacePairwisePrior>(blasso_shape, blasso_rate);
+    }
+    if (type == "normal") {
+        return std::make_unique<NormalPairwisePrior>(pairwise_scale);
     }
     return std::make_unique<CauchyPairwisePrior>(pairwise_scale);
 }

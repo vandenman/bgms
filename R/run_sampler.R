@@ -6,7 +6,6 @@
 # C++ sampling function. Returns the raw per-chain output lists from C++.
 # ==============================================================================
 
-
 # ------------------------------------------------------------------
 # bb_between_default
 # ------------------------------------------------------------------
@@ -17,7 +16,7 @@
 # Returns: value unchanged, or -1.0 when NULL.
 # ------------------------------------------------------------------
 bb_between_default = function(value) {
-  if(is.null(value)) -1.0 else value
+  if (is.null(value)) -1.0 else value
 }
 
 
@@ -27,19 +26,22 @@ bb_between_default = function(value) {
 run_sampler = function(spec) {
   stopifnot(inherits(spec, "bgm_spec"))
 
-  raw = switch(spec$model_type,
-    ggm       = run_sampler_ggm(spec),
-    omrf      = run_sampler_omrf(spec),
+  raw = switch(
+    spec$model_type,
+    ggm = run_sampler_ggm(spec),
+    omrf = run_sampler_omrf(spec),
     mixed_mrf = run_sampler_mixed_mrf(spec),
-    compare   = run_sampler_compare(spec),
+    compare = run_sampler_compare(spec),
     stop("Unknown model_type: ", spec$model_type)
   )
 
   # Check for user interrupt across all chains
   userInterrupt = any(vapply(raw, `[[`, logical(1L), "userInterrupt"))
   attr(raw, "userInterrupt") = userInterrupt
-  if(userInterrupt) {
-    warning("Stopped sampling after user interrupt, results are likely uninterpretable.")
+  if (userInterrupt) {
+    warning(
+      "Stopped sampling after user interrupt, results are likely uninterpretable."
+    )
   }
 
   raw
@@ -58,13 +60,21 @@ run_sampler_ggm = function(spec) {
   bb_alpha_between = bb_between_default(p$beta_bernoulli_alpha_between)
   bb_beta_between = bb_between_default(p$beta_bernoulli_beta_between)
 
+  prior_only = isTRUE(p$prior_only)
+
+  if (prior_only) {
+    nv = d$num_variables
+    input = list(n = 0L, suf_stat = matrix(0, nrow = nv, ncol = nv))
+    edge_indicators = p$initial_graph
+  } else {
+    input = list(X = d$x)
+    edge_indicators = matrix(1L, nrow = d$num_variables, ncol = d$num_variables)
+  }
+
   out_raw = sample_ggm(
-    inputFromR = list(X = d$x),
+    inputFromR = input,
     prior_inclusion_prob = p$inclusion_probability,
-    initial_edge_indicators = matrix(1L,
-      nrow = d$num_variables,
-      ncol = d$num_variables
-    ),
+    initial_edge_indicators = edge_indicators,
     no_iter = s$iter,
     no_warmup = s$warmup,
     no_chains = s$chains,
@@ -84,7 +94,17 @@ run_sampler_ggm = function(spec) {
     pairwise_prior = p$pairwise_prior,
     pairwise_scale = p$pairwise_scale,
     blasso_shape = p$blasso_shape,
-    blasso_rate = p$blasso_rate
+    blasso_rate = p$blasso_rate,
+    diagonal_prior = if (!is.null(p$diagonal_prior)) {
+      p$diagonal_prior
+    } else {
+      "exponential"
+    },
+    diagonal_prior_rate = if (!is.null(p$diagonal_prior_rate)) {
+      p$diagonal_prior_rate
+    } else {
+      1.0
+    }
   )
 
   out_raw
@@ -105,19 +125,20 @@ run_sampler_omrf = function(spec) {
   bb_beta_between = bb_between_default(p$beta_bernoulli_beta_between)
 
   input_list = list(
-    observations        = d$x,
-    num_categories      = d$num_categories,
+    observations = d$x,
+    num_categories = d$num_categories,
     is_ordinal_variable = v$is_ordinal,
-    baseline_category   = v$baseline_category,
-    main_alpha          = p$main_alpha,
-    main_beta           = p$main_beta,
-    pairwise_scale      = p$pairwise_scale
+    baseline_category = v$baseline_category,
+    main_alpha = p$main_alpha,
+    main_beta = p$main_beta,
+    pairwise_scale = p$pairwise_scale
   )
 
   out_raw = sample_omrf(
     inputFromR = input_list,
     prior_inclusion_prob = p$inclusion_probability,
-    initial_edge_indicators = matrix(1L,
+    initial_edge_indicators = matrix(
+      1L,
       nrow = d$num_variables,
       ncol = d$num_variables
     ),
@@ -162,21 +183,22 @@ run_sampler_mixed_mrf = function(spec) {
   bb_beta_between = bb_between_default(p$beta_bernoulli_beta_between)
 
   input_list = list(
-    discrete_observations   = d$x_discrete,
+    discrete_observations = d$x_discrete,
     continuous_observations = d$x_continuous,
-    num_categories          = d$num_categories,
-    is_ordinal_variable     = as.integer(v$is_ordinal),
-    baseline_category       = v$baseline_category,
-    main_alpha              = p$main_alpha,
-    main_beta               = p$main_beta,
-    pairwise_scale          = p$pairwise_scale,
-    pseudolikelihood        = p$pseudolikelihood
+    num_categories = d$num_categories,
+    is_ordinal_variable = as.integer(v$is_ordinal),
+    baseline_category = v$baseline_category,
+    main_alpha = p$main_alpha,
+    main_beta = p$main_beta,
+    pairwise_scale = p$pairwise_scale,
+    pseudolikelihood = p$pseudolikelihood
   )
 
   out_raw = sample_mixed_mrf(
     inputFromR = input_list,
     prior_inclusion_prob = p$inclusion_probability,
-    initial_edge_indicators = matrix(1L,
+    initial_edge_indicators = matrix(
+      1L,
       nrow = d$num_variables,
       ncol = d$num_variables
     ),
