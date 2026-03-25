@@ -431,7 +431,9 @@ coef.bgmCompare = function(object, ...) {
     if(!is.null(cache)) {
       ensure_summaries(x)
       val = cache[[name]]
-      if(!is.null(val)) return(val)
+      if(!is.null(val)) {
+        return(val)
+      }
     }
   }
   .subset2(x, name)
@@ -449,7 +451,9 @@ coef.bgmCompare = function(object, ...) {
     if(!is.null(cache)) {
       ensure_summaries(x)
       val = cache[[name]]
-      if(!is.null(val)) return(val)
+      if(!is.null(val)) {
+        return(val)
+      }
     }
   }
   .subset2(x, name)

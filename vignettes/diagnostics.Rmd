@@ -82,10 +82,12 @@ chains = fit$raw_samples$pairwise
 nchains = length(chains)
 cols = c("firebrick", "steelblue", "darkgreen", "goldenrod")
 
-plot(chains[[1]][, param_index], type = "l", col = cols[1],
+plot(chains[[1]][, param_index],
+  type = "l", col = cols[1],
   xlab = "Iteration", ylab = "Value",
   main = "Traceplot of pairwise[1]",
-  ylim = range(sapply(chains, function(ch) range(ch[, param_index]))))
+  ylim = range(sapply(chains, function(ch) range(ch[, param_index])))
+)
 if(nchains > 1) {
   for(c in 2:nchains) {
     lines(chains[[c]][, param_index], col = cols[c])

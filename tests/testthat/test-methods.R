@@ -925,10 +925,12 @@ test_that("extract_ess works with adaptive-metropolis", {
 
 for(spec in get_bgms_fixtures()) {
   test_that(
-    sprintf("[[ and $ return identical posterior summaries (%s)", spec$label), {
+    sprintf("[[ and $ return identical posterior summaries (%s)", spec$label),
+    {
       fit = spec$get_fit()
       summary_fields = grep(
-        "^posterior_summary_", names(fit), value = TRUE
+        "^posterior_summary_", names(fit),
+        value = TRUE
       )
       for(field in summary_fields) {
         bracket_val = fit[[field]]
@@ -944,10 +946,12 @@ for(spec in get_bgms_fixtures()) {
 
 for(spec in get_bgmcompare_fixtures()) {
   test_that(
-    sprintf("[[ and $ return identical posterior summaries (%s)", spec$label), {
+    sprintf("[[ and $ return identical posterior summaries (%s)", spec$label),
+    {
       fit = spec$get_fit()
       summary_fields = grep(
-        "^posterior_summary_", names(fit), value = TRUE
+        "^posterior_summary_", names(fit),
+        value = TRUE
       )
       for(field in summary_fields) {
         bracket_val = fit[[field]]

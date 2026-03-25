@@ -208,14 +208,14 @@ test_that("Rhat is finite for niter = 2", {
 test_that("NaN in one parameter does not corrupt other parameters", {
   set.seed(5)
   good = rnorm(200)
-  bad = c(rnorm(99), NaN, rnorm(100))  # NaN in chain 1
+  bad = c(rnorm(99), NaN, rnorm(100)) # NaN in chain 1
   draws = array(c(good, bad), dim = c(100, 2, 2))
 
   ess = bgms:::.compute_ess_cpp(draws)
   expect_length(ess, 2)
-  expect_true(is.finite(ess[1]))  # good parameter
+  expect_true(is.finite(ess[1])) # good parameter
   expect_true(ess[1] > 0)
-  expect_true(is.na(ess[2]))     # bad parameter
+  expect_true(is.na(ess[2])) # bad parameter
 
   rhat = bgms:::.compute_rhat_cpp(draws)
   expect_length(rhat, 2)
@@ -458,7 +458,7 @@ test_that("NaN in one indicator parameter does not corrupt others", {
   draws = array(c(good, bad), dim = c(100, 2, 2))
 
   result = bgms:::.compute_indicator_ess_cpp(draws)
-  expect_true(is.finite(result[1, "mean"]))       # good parameter
+  expect_true(is.finite(result[1, "mean"])) # good parameter
   expect_true(is.finite(result[1, "n_eff_mixt"]))
-  expect_true(all(is.na(result[2, ])))             # bad parameter
+  expect_true(all(is.na(result[2, ]))) # bad parameter
 })

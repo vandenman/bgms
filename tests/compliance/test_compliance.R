@@ -470,10 +470,11 @@ na_bugfix_ids = c(
 )
 
 # Configs excluded from bitwise comparison due to confirmed algorithm changes
-# Configs excluded from bitwise comparison due to confirmed algorithm changes
-# (see header notes 4, 5, 7, 8). Checked for structural match only.
+# (see header notes 4, 5, 7, 8, 9, 10). Checked for structural match only.
+# All configs are structure-only pending fixture regeneration after the
+# association-scale reparameterization (note 8).
 structure_only_ids = c(
-  names(all_configs) # all OMRF after association-scale reparameterization (note 8)
+  names(all_configs)
 )
 
 # Diagnostic and derived columns that changed in PR #77 (note 8).
@@ -684,7 +685,7 @@ check_structure = function(expected, actual, type) {
         ))
       }
     } else if(!identical(dim(exp_val), dim(act_val)) &&
-             !identical(length(exp_val), length(act_val))) {
+      !identical(length(exp_val), length(act_val))) {
       mismatches = c(mismatches, sprintf(
         "  %s: dim mismatch (%s vs %s)",
         field, paste(dim(exp_val), collapse = "x"), paste(dim(act_val), collapse = "x")

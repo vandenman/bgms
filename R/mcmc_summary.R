@@ -15,8 +15,12 @@
 # ------------------------------------------------------------------
 ensure_summaries = function(fit) {
   cache = fit$cache
-  if(is.null(cache)) return(invisible(NULL))
-  if(isTRUE(cache$summaries_computed)) return(invisible(NULL))
+  if(is.null(cache)) {
+    return(invisible(NULL))
+  }
+  if(isTRUE(cache$summaries_computed)) {
+    return(invisible(NULL))
+  }
 
   raw = cache$raw
   edge_selection = cache$edge_selection
@@ -46,7 +50,6 @@ ensure_summaries = function(fit) {
     cache$posterior_summary_main_differences = summary_list$main_differences
     cache$posterior_summary_pairwise_differences = summary_list$pairwise_differences
     cache$posterior_summary_indicator = summary_list$indicators
-
   } else {
     summary_list = summarize_fit(raw, edge_selection = edge_selection)
     main_summary = summary_list$main[, -1]
@@ -61,10 +64,30 @@ ensure_summaries = function(fit) {
       main_rows = seq_len(n_main)
       quad_rows = n_main + seq_len(n_quad)
       cache$posterior_summary_main = main_summary[main_rows, , drop = FALSE]
-      cache$posterior_summary_quadratic = main_summary[quad_rows, , drop = FALSE]
+      # Recompute quadratic summary on the residual variance scale:
+      # raw samples store negative association diagonal; transform to
+      # residual variance = -1 / (2 * diag).
+      array3d_main = combine_chains(raw, "main_samples")
+      array3d_rv = -1 / (2 * array3d_main[, , quad_rows, drop = FALSE])
+      rv_summary = summarize_manual(raw, array3d = array3d_rv)[, -1]
+      rownames(rv_summary) = sub(
+        " \\(precision diag\\)$", " (residual variance)",
+        names_main[quad_rows]
+      )
+      cache$posterior_summary_quadratic = rv_summary
     } else if(isTRUE(is_continuous)) {
       cache$posterior_summary_main = NULL
-      cache$posterior_summary_quadratic = main_summary
+      # Recompute quadratic summary on the residual variance scale:
+      # raw samples store precision diagonal; transform to
+      # residual variance = 1 / precision.
+      array3d_main = combine_chains(raw, "main_samples")
+      array3d_rv = 1 / array3d_main
+      rv_summary = summarize_manual(raw, array3d = array3d_rv)[, -1]
+      rownames(rv_summary) = sub(
+        " \\(precision\\)$", " (residual variance)",
+        names_main
+      )
+      cache$posterior_summary_quadratic = rv_summary
     } else {
       cache$posterior_summary_main = main_summary
     }

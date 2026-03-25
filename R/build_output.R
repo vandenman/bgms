@@ -305,7 +305,7 @@ build_output_bgm = function(spec, raw) {
 
   # --- Parameter names --------------------------------------------------------
   if(is_continuous) {
-    # GGM: one "precision" per variable
+    # GGM: raw samples are on precision scale; label accordingly
     names_main = paste0(data_columnnames, " (precision)")
     is_ordinal_variable = NULL
     num_categories = NULL
@@ -421,9 +421,10 @@ build_output_bgm = function(spec, raw) {
   results$posterior_mean_associations = associations
 
   # --- Residual variance (GGM only) -------------------------------------------
-  # C++ stores precision diagonal; convert to residual variance = 1 / diag.
+  # C++ stores precision diagonal; residual variance = 1 / precision.
+  # Average per-sample inversions to avoid Jensen's inequality bias.
   if(is_continuous) {
-    results$posterior_mean_residual_variance = 1 / main_means
+    results$posterior_mean_residual_variance = colMeans(1 / pooled_main)
     names(results$posterior_mean_residual_variance) = data_columnnames
   }
 
@@ -718,10 +719,12 @@ build_output_mixed_mrf = function(spec, raw) {
   )
 
   # --- Residual variance (continuous diagonal) --------------------------------
-  # C++ stores negative association diagonal; convert to residual variance.
-  assoc_diag_means = main_means[nt + q + seq_len(q)]
-  names(assoc_diag_means) = cont_names
-  results$posterior_mean_residual_variance = -1 / (2 * assoc_diag_means)
+  # C++ stores negative association diagonal; residual variance = -1/(2*diag).
+  # Average per-sample inversions to avoid Jensen's inequality bias.
+  pooled_quad = pooled_main[, nt + q + seq_len(q), drop = FALSE]
+  rv = colMeans(-1 / (2 * pooled_quad))
+  names(rv) = cont_names
+  results$posterior_mean_residual_variance = rv
 
   # --- Posterior mean: indicator -----------------------------------------------
   if(edge_selection) {
@@ -864,6 +867,51 @@ build_output_compare = function(spec, raw) {
   results$posterior_mean_associations_baseline =
     results$posterior_mean_associations_baseline +
     t(results$posterior_mean_associations_baseline)
+
+  # --- Posterior mean: main differences ---------------------------------------
+  n_main_total = ncol(raw[[1]]$main_samples)
+  pooled_main_diff = do.call(rbind, lapply(raw, function(ch) {
+    ch$main_samples[, (num_main + 1):n_main_total, drop = FALSE]
+  }))
+  main_diff_means = colMeans(pooled_main_diff)
+
+  pmm_diff = matrix(NA, nrow = num_variables, ncol = max_num_categories)
+  start = 0L
+  stop = 0L
+  for(vi in seq_len(num_variables)) {
+    if(is_ordinal_variable[vi]) {
+      start = stop + 1L
+      stop = start + num_categories[vi] - 1L
+      pmm_diff[vi, seq_len(num_categories[vi])] =
+        main_diff_means[start:stop]
+    } else {
+      start = stop + 1L
+      stop = start + 1L
+      pmm_diff[vi, 1:2] = main_diff_means[start:stop]
+    }
+  }
+  results$posterior_mean_main_differences = pmm_diff
+  rownames(results$posterior_mean_main_differences) = data_columnnames
+  colnames(results$posterior_mean_main_differences) =
+    paste0("cat (", seq_len(ncol(pmm_diff)), ")")
+
+  # --- Posterior mean: associations differences --------------------------------
+  n_pair_total = ncol(raw[[1]]$pairwise_samples)
+  pooled_pair_diff = do.call(rbind, lapply(raw, function(ch) {
+    ch$pairwise_samples[, (num_pair + 1):n_pair_total, drop = FALSE]
+  }))
+  pair_diff_means = colMeans(pooled_pair_diff)
+
+  results$posterior_mean_associations_differences = matrix(0,
+    nrow = num_variables, ncol = num_variables,
+    dimnames = list(data_columnnames, data_columnnames)
+  )
+  results$posterior_mean_associations_differences[
+    lower.tri(results$posterior_mean_associations_differences)
+  ] = pair_diff_means
+  results$posterior_mean_associations_differences =
+    results$posterior_mean_associations_differences +
+    t(results$posterior_mean_associations_differences)
 
   # --- raw_samples ------------------------------------------------------------
   results$raw_samples = list(
