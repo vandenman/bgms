@@ -1,0 +1,127 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+\definecolor{navy}{HTML}{1D3557}
+\definecolor{teal}{HTML}{A8DADC}
+\definecolor{midblue}{HTML}{457B9D}
+
+\begin{document}
+\begin{tikzpicture}
+
+% --- Canvas: 2:1 ratio (matches banner width, double height) ---
+\fill[navy] (0,0) rectangle (20,10);
+
+% =================================================================
+% Banner content, vertically centred (shifted up by 2.5)
+% Original banner occupies y=0..5 on a 20x5 canvas;
+% here it occupies y=2.5..7.5 on 20x10.
+% =================================================================
+
+% --- Title (bottom-left, scaled up) ---
+\node[anchor=west, text=white, font=\fontfamily{phv}\selectfont\bfseries\fontsize{72}{72}\selectfont]
+  at (0.8, 3.0) {bgms};
+\node[anchor=west, text=teal, font=\fontfamily{phv}\selectfont\fontsize{20}{20}\selectfont]
+  at (0.9, 1.2) {Bayesian Analysis of Graphical Models};
+
+% =================================================================
+% NETWORK (top-right, scaled up to fill)
+% =================================================================
+
+\coordinate (n1) at (9.0, 8.5);
+\coordinate (n2) at (12.0, 9.1);
+\coordinate (n3) at (15.0, 8.1);
+\coordinate (n4) at (18.5, 8.8);
+\coordinate (n5) at (10.5, 5.5);
+\coordinate (n6) at (13.5, 4.5);
+\coordinate (n7) at (16.5, 5.8);
+\coordinate (n8) at (19.5, 4.8);
+\coordinate (n9) at (12.5, 7.1);
+\coordinate (n10) at (16.0, 6.6);
+
+% --- SURVIVING EDGES: fuzzy band -> crisp line ---
+
+% n1--n2
+\draw[teal, opacity=0.06, line width=6pt] (n1) -- (n2);
+\draw[teal, opacity=0.15, line width=3pt] (n1) -- ($(n1)!0.4!(n2)$);
+\draw[teal, opacity=0.25, line width=2pt] ($(n1)!0.3!(n2)$) -- ($(n1)!0.7!(n2)$);
+\draw[teal, opacity=0.70, line width=1.2pt] ($(n1)!0.5!(n2)$) -- (n2);
+
+% n2--n9
+\draw[teal, opacity=0.06, line width=6pt] (n2) -- (n9);
+\draw[teal, opacity=0.15, line width=3pt] (n2) -- ($(n2)!0.4!(n9)$);
+\draw[teal, opacity=0.30, line width=2pt] ($(n2)!0.3!(n9)$) -- ($(n2)!0.7!(n9)$);
+\draw[teal, opacity=0.75, line width=1.2pt] ($(n2)!0.5!(n9)$) -- (n9);
+
+% n9--n3
+\draw[teal, opacity=0.06, line width=6pt] (n9) -- (n3);
+\draw[teal, opacity=0.18, line width=3pt] (n9) -- ($(n9)!0.4!(n3)$);
+\draw[teal, opacity=0.35, line width=2pt] ($(n9)!0.3!(n3)$) -- ($(n9)!0.7!(n3)$);
+\draw[teal, opacity=0.75, line width=1.2pt] ($(n9)!0.5!(n3)$) -- (n3);
+
+% n3--n10
+\draw[teal, opacity=0.06, line width=5pt] (n3) -- (n10);
+\draw[teal, opacity=0.20, line width=2.5pt] (n3) -- ($(n3)!0.5!(n10)$);
+\draw[teal, opacity=0.70, line width=1.2pt] ($(n3)!0.4!(n10)$) -- (n10);
+
+% n10--n4
+\draw[teal, opacity=0.06, line width=5pt] (n10) -- (n4);
+\draw[teal, opacity=0.20, line width=2.5pt] (n10) -- ($(n10)!0.5!(n4)$);
+\draw[teal, opacity=0.65, line width=1.2pt] ($(n10)!0.4!(n4)$) -- (n4);
+
+% n5--n9
+\draw[teal, opacity=0.06, line width=6pt] (n5) -- (n9);
+\draw[teal, opacity=0.15, line width=3pt] (n5) -- ($(n5)!0.4!(n9)$);
+\draw[teal, opacity=0.30, line width=2pt] ($(n5)!0.3!(n9)$) -- ($(n5)!0.7!(n9)$);
+\draw[teal, opacity=0.70, line width=1.2pt] ($(n5)!0.5!(n9)$) -- (n9);
+
+% n5--n6
+\draw[teal, opacity=0.06, line width=5pt] (n5) -- (n6);
+\draw[teal, opacity=0.18, line width=2.5pt] (n5) -- ($(n5)!0.5!(n6)$);
+\draw[teal, opacity=0.65, line width=1.2pt] ($(n5)!0.4!(n6)$) -- (n6);
+
+% n6--n7
+\draw[teal, opacity=0.06, line width=5pt] (n6) -- (n7);
+\draw[teal, opacity=0.20, line width=2.5pt] (n6) -- ($(n6)!0.5!(n7)$);
+\draw[teal, opacity=0.70, line width=1.2pt] ($(n6)!0.4!(n7)$) -- (n7);
+
+% n7--n8
+\draw[teal, opacity=0.06, line width=5pt] (n7) -- (n8);
+\draw[teal, opacity=0.20, line width=2.5pt] (n7) -- ($(n7)!0.5!(n8)$);
+\draw[teal, opacity=0.65, line width=1.2pt] ($(n7)!0.4!(n8)$) -- (n8);
+
+% --- DYING EDGES: fuzzy band -> fading to nothing ---
+
+% n2--n3
+\draw[teal, opacity=0.08, line width=5pt] (n2) -- (n3);
+\draw[teal, opacity=0.04, line width=2pt] ($(n2)!0.3!(n3)$) -- ($(n2)!0.7!(n3)$);
+
+% n3--n4
+\draw[teal, opacity=0.06, line width=4pt] (n3) -- (n4);
+\draw[teal, opacity=0.03, line width=1.5pt] ($(n3)!0.4!(n4)$) -- ($(n3)!0.8!(n4)$);
+
+% n1--n5
+\draw[teal, opacity=0.07, line width=4pt] (n1) -- (n5);
+
+% n4--n8
+\draw[teal, opacity=0.05, line width=4pt] (n4) -- (n8);
+
+% n6--n10
+\draw[teal, opacity=0.06, line width=3.5pt] (n6) -- (n10);
+
+% n9--n10
+\draw[teal, opacity=0.07, line width=4pt] (n9) -- (n10);
+
+% --- Nodes ---
+\foreach \n/\s in {n1/4pt, n2/5pt, n3/6pt, n4/4.5pt, n5/5.5pt,
+                   n6/4pt, n7/5pt, n8/3.5pt, n9/6.5pt, n10/5pt} {
+  \fill[teal] (\n) circle (\s);
+}
+
+% Subtle glow on hub nodes
+\foreach \n/\s in {n9/6.5pt, n3/6pt} {
+  \fill[teal, opacity=0.10] (\n) circle ({\s*2.0});
+}
+
+\end{tikzpicture}
+\end{document}
