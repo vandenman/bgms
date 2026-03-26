@@ -70,3 +70,9 @@ Use the format: `type: short description`. Common types: `feat`,
 ## Contributors
 
 All contributors are acknowledged in `inst/CONTRIBUTORS.md`.
+
+## Code of Conduct
+
+This project is released with a
+[Contributor Code of Conduct](CODE_OF_CONDUCT.md). By contributing to bgms,
+you agree to abide by its terms.
