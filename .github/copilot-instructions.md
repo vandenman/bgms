@@ -84,8 +84,8 @@ any issues they report:
    source("inst/styler/bgms_style.R")
    styler::style_pkg(style = bgms_style)
    ```
-   After running, check test files for `expect_*(result = ...)` and
-   revert those to `result <- ...`.
+   The styler preserves `<<-` and `<-` inside function-call arguments
+   automatically. No manual revert step is needed.
 
 2. **Lint** — catch issues the CI lint workflow will flag:
    ```r
@@ -113,7 +113,8 @@ any issues they report:
 - Add `@keywords internal` to exported functions.
 - Use `\dontrun{}` when `\donttest{}` suffices.
 - Add Doxygen blocks in `.cpp` implementation files.
-- Use `<-` for assignment in R code.
+- Use `<-` for assignment in R code (exceptions: `<<-` for
+  superassignment and `<-` inside function-call argument capture).
 - Use AI-style prose: no superlatives, no hedging qualifiers, no
   transition phrases ("Furthermore", "Moreover", "Additionally").
 - Write session-oriented documentation ("in your R session",
