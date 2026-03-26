@@ -121,12 +121,6 @@ public:
     void do_one_metropolis_step(int iteration = -1) override;
 
     /**
-     * Update only continuous precision parameters via Metropolis (hybrid NUTS+MH).
-     * @param iteration  Current iteration (for Robbins-Monro adaptation)
-     */
-    void do_pairwise_continuous_metropolis_step(int iteration = -1);
-
-    /**
      * Initialize Metropolis adaptation controllers for proposal-SD tuning.
      * Called before warmup begins.
      */

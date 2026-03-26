@@ -2,8 +2,7 @@
 //
 // Uses the unified MCMC runner infrastructure to sample from models with
 // both discrete (ordinal / Blume-Capel) and continuous variables.
-// Supports MH and hybrid-nuts (NUTS for unconstrained block + MH for continuous precision)
-// samplers, with optional edge selection.
+// Supports MH and NUTS samplers, with optional edge selection.
 #include <vector>
 #include <memory>
 #include <RcppArmadillo.h>
@@ -42,7 +41,7 @@
 // @param beta_bernoulli_beta_between  SBM between-cluster beta
 // @param dirichlet_alpha         Dirichlet alpha for SBM
 // @param lambda                  Lambda for SBM
-// @param sampler_type            Sampler type string ("mh", "hybrid-nuts", etc.)
+// @param sampler_type            Sampler type string ("mh", "nuts", etc.)
 // @param target_acceptance       Target acceptance rate for gradient-based samplers
 // @param max_tree_depth          Maximum tree depth for NUTS
 // @param num_leapfrogs           Number of leapfrog steps for HMC

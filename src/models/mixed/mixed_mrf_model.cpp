@@ -1212,19 +1212,6 @@ void MixedMRFModel::do_one_metropolis_step(int iteration) {
     // (Matches the OMRF pattern; avoids double-counting indicator proposals.)
 }
 
-void MixedMRFModel::do_pairwise_continuous_metropolis_step(int iteration) {
-    // Off-diagonal precision (edge-gated)
-    if(q_ >= 2) {
-        for(size_t i = 0; i < q_ - 1; ++i)
-            for(size_t j = i + 1; j < q_; ++j)
-                if(!edge_selection_active_ || gyy(i, j) == 1)
-                    update_pairwise_effects_continuous_offdiag(i, j, iteration);
-    }
-    // Diagonal precision (always updated)
-    for(size_t i = 0; i < q_; ++i)
-        update_pairwise_effects_continuous_diag(i, iteration);
-}
-
 void MixedMRFModel::update_edge_indicators() {
     if(!edge_selection_active_) return;
 

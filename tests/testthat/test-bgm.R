@@ -891,7 +891,7 @@ test_that("bgm mixed MRF marginal PL with edge selection runs", {
     fit$posterior_mean_indicator <= 1))
 })
 
-test_that("bgm mixed MRF hybrid-NUTS runs", {
+test_that("bgm mixed MRF NUTS runs", {
   fit = get_bgms_fit_mixed_mrf_nuts()
   expect_s3_class(fit, "bgms")
   expect_equal(nrow(fit$posterior_mean_associations), 5)
@@ -901,7 +901,7 @@ test_that("bgm mixed MRF hybrid-NUTS runs", {
   expect_false(is.null(fit$posterior_mean_indicator))
 })
 
-test_that("bgm mixed MRF hybrid-NUTS output dimensions", {
+test_that("bgm mixed MRF NUTS output dimensions", {
   fit = get_bgms_fit_mixed_mrf_nuts()
   args = extract_arguments(fit)
   p_total = args$num_variables
@@ -915,7 +915,7 @@ test_that("bgm mixed MRF hybrid-NUTS output dimensions", {
   expect_equal(nrow(fit$raw_samples$main[[1]]), args$iter)
 })
 
-test_that("bgm mixed MRF hybrid-NUTS is reproducible", {
+test_that("bgm mixed MRF NUTS is reproducible", {
   fit1 = get_bgms_fit_mixed_mrf_nuts()
 
   set.seed(99)
@@ -946,7 +946,7 @@ test_that("bgm mixed MRF hybrid-NUTS is reproducible", {
   expect_equal(fit1$raw_samples$pairwise, fit2$raw_samples$pairwise)
 })
 
-test_that("bgm mixed MRF hybrid-NUTS without edge selection runs", {
+test_that("bgm mixed MRF NUTS without edge selection runs", {
   fit = get_bgms_fit_mixed_mrf_nuts_no_es()
   expect_s3_class(fit, "bgms")
   expect_equal(nrow(fit$posterior_mean_associations), 5)
