@@ -877,26 +877,37 @@ build_output_compare = function(spec, raw) {
     ch$main_samples[, (num_main + 1):n_main_total, drop = FALSE]
   }))
   main_diff_means = colMeans(pooled_main_diff)
+  num_contrasts = num_groups - 1L
 
-  pmm_diff = matrix(NA, nrow = num_variables, ncol = max_num_categories)
-  start = 0L
-  stop = 0L
-  for(vi in seq_len(num_variables)) {
-    if(is_ordinal_variable[vi]) {
-      start = stop + 1L
-      stop = start + num_categories[vi] - 1L
-      pmm_diff[vi, seq_len(num_categories[vi])] =
-        main_diff_means[start:stop]
-    } else {
-      start = stop + 1L
-      stop = start + 1L
-      pmm_diff[vi, 1:2] = main_diff_means[start:stop]
+  main_diff_list = vector("list", num_contrasts)
+  for(g in seq_len(num_contrasts)) {
+    offset = (g - 1L) * num_main
+    pmm_diff = matrix(NA, nrow = num_variables, ncol = max_num_categories)
+    start = 0L
+    stop = 0L
+    for(vi in seq_len(num_variables)) {
+      if(is_ordinal_variable[vi]) {
+        start = stop + 1L
+        stop = start + num_categories[vi] - 1L
+        pmm_diff[vi, seq_len(num_categories[vi])] =
+          main_diff_means[offset + start:stop]
+      } else {
+        start = stop + 1L
+        stop = start + 1L
+        pmm_diff[vi, 1:2] = main_diff_means[offset + start:stop]
+      }
     }
+    rownames(pmm_diff) = data_columnnames
+    colnames(pmm_diff) = paste0("cat (", seq_len(ncol(pmm_diff)), ")")
+    main_diff_list[[g]] = pmm_diff
   }
-  results$posterior_mean_main_differences = pmm_diff
-  rownames(results$posterior_mean_main_differences) = data_columnnames
-  colnames(results$posterior_mean_main_differences) =
-    paste0("cat (", seq_len(ncol(pmm_diff)), ")")
+  names(main_diff_list) = paste0("diff", seq_len(num_contrasts))
+
+  if(num_contrasts == 1L) {
+    results$posterior_mean_main_differences = main_diff_list[[1L]]
+  } else {
+    results$posterior_mean_main_differences = main_diff_list
+  }
 
   # --- Posterior mean: associations differences --------------------------------
   n_pair_total = ncol(raw[[1]]$pairwise_samples)
@@ -905,16 +916,24 @@ build_output_compare = function(spec, raw) {
   }))
   pair_diff_means = colMeans(pooled_pair_diff)
 
-  results$posterior_mean_associations_differences = matrix(0,
-    nrow = num_variables, ncol = num_variables,
-    dimnames = list(data_columnnames, data_columnnames)
-  )
-  results$posterior_mean_associations_differences[
-    lower.tri(results$posterior_mean_associations_differences)
-  ] = pair_diff_means
-  results$posterior_mean_associations_differences =
-    results$posterior_mean_associations_differences +
-    t(results$posterior_mean_associations_differences)
+  pair_diff_list = vector("list", num_contrasts)
+  for(g in seq_len(num_contrasts)) {
+    offset = (g - 1L) * num_pair
+    mat = matrix(0,
+      nrow = num_variables, ncol = num_variables,
+      dimnames = list(data_columnnames, data_columnnames)
+    )
+    mat[lower.tri(mat)] = pair_diff_means[offset + seq_len(num_pair)]
+    mat = mat + t(mat)
+    pair_diff_list[[g]] = mat
+  }
+  names(pair_diff_list) = paste0("diff", seq_len(num_contrasts))
+
+  if(num_contrasts == 1L) {
+    results$posterior_mean_associations_differences = pair_diff_list[[1L]]
+  } else {
+    results$posterior_mean_associations_differences = pair_diff_list
+  }
 
   # --- raw_samples ------------------------------------------------------------
   results$raw_samples = list(
