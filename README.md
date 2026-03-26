@@ -1,7 +1,10 @@
 
 <!-- README.md is generated from Readme.Rmd. Please edit that file -->
 
-![bgms](man/figures/bgms-banner.svg)
+<p align="center">
+
+<img src="man/figures/bgms-banner.svg" width="100%" alt="bgms">
+</p>
 
 <!-- badges: start -->
 
@@ -78,7 +81,7 @@ Related methodological papers:
 4.  Sekulovski, N., Arena, G., Haslbeck, J. M. B., Huth, K. B. S.,
     Friel, N., & Marsman, M. (2025). A stochastic block prior for
     clustering in graphical models.
-    [![PsyArXiv:29p3m](https://img.shields.io/badge/PsyArXiv-29p3m-blue.svg)](https://osf.io/preprints/psyarxiv/29p3m_v1)
+    [![PsyArXiv:29p3m](https://img.shields.io/badge/PsyArXiv-29p3m-blue.svg)](https://osf.io/preprints/psyarxiv/29p3m_v3)
 
 You can also retrieve the citation from R:
 
