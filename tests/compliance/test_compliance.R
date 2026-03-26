@@ -419,6 +419,22 @@ resolve_args = function(args) {
   resolved
 }
 
+# Migrate fixtures generated with pre-0.1.6.4 field names.
+# PR #84 renamed posterior_mean_pairwise → posterior_mean_associations.
+migrate_fixture = function(fixture) {
+  renames = c(
+    posterior_mean_pairwise              = "posterior_mean_associations",
+    posterior_mean_pairwise_baseline     = "posterior_mean_associations_baseline",
+    posterior_mean_pairwise_differences  = "posterior_mean_associations_differences"
+  )
+  for(old_name in names(renames)) {
+    if(old_name %in% names(fixture) && !renames[[old_name]] %in% names(fixture)) {
+      names(fixture)[names(fixture) == old_name] = renames[[old_name]]
+    }
+  }
+  fixture
+}
+
 extract_bgm_actual = function(fit) {
   list(
     posterior_summary_main = fit$posterior_summary_main,
@@ -717,7 +733,7 @@ for(entry in manifest) {
     skip_count = skip_count + 1
     next
   }
-  expected = readRDS(fixture_path)
+  expected = migrate_fixture(readRDS(fixture_path))
 
   # Get config
   if(!id %in% names(all_configs)) {
