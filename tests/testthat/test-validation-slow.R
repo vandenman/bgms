@@ -51,7 +51,8 @@ test_that("mixed MRF parameter recovery: cor > 0.8 (small network)", {
   fit = bgm(dat,
     variable_type = vt,
     pseudolikelihood = "conditional", edge_selection = FALSE,
-    iter = 10000, warmup = 5000, chains = 2, seed = 301
+    iter = 10000, warmup = 5000, chains = 2, seed = 301,
+    display_progress = "none"
   )
 
   true_blocks = list(
@@ -87,7 +88,8 @@ test_that("MH vs NUTS posterior agreement: cor > 0.95", {
     pseudolikelihood = "conditional",
     update_method = "adaptive-metropolis",
     edge_selection = FALSE,
-    iter = 15000, warmup = 10000, chains = 2, seed = 401
+    iter = 15000, warmup = 10000, chains = 2, seed = 401,
+    display_progress = "none"
   )
 
   fit_nuts = bgm(dat,
@@ -95,7 +97,8 @@ test_that("MH vs NUTS posterior agreement: cor > 0.95", {
     pseudolikelihood = "conditional",
     update_method = "nuts",
     edge_selection = FALSE,
-    iter = 5000, warmup = 3000, chains = 2, seed = 402
+    iter = 5000, warmup = 3000, chains = 2, seed = 402,
+    display_progress = "none"
   )
 
   est_mh = flatten_params(extract_bgms_blocks(fit_mh, net))
@@ -123,13 +126,15 @@ test_that("conditional vs marginal PL agreement: cor > 0.90", {
   fit_cond = bgm(dat,
     variable_type = vt,
     pseudolikelihood = "conditional", edge_selection = FALSE,
-    iter = 10000, warmup = 5000, chains = 2, seed = 501
+    iter = 10000, warmup = 5000, chains = 2, seed = 501,
+    display_progress = "none"
   )
 
   fit_marg = bgm(dat,
     variable_type = vt,
     pseudolikelihood = "marginal", edge_selection = FALSE,
-    iter = 10000, warmup = 5000, chains = 2, seed = 502
+    iter = 10000, warmup = 5000, chains = 2, seed = 502,
+    display_progress = "none"
   )
 
   est_cond = flatten_params(extract_bgms_blocks(fit_cond, net))
@@ -157,7 +162,8 @@ test_that("estimate-simulate-re-estimate cycle: cor > 0.7 (mixed MRF)", {
   fit1 = bgm(dat,
     variable_type = vt,
     edge_selection = FALSE, iter = 5000, warmup = 2000,
-    chains = 1, seed = 601
+    chains = 1, seed = 601,
+    display_progress = "none"
   )
 
   simulated = simulate(fit1, nsim = 2000, seed = 701)
@@ -165,7 +171,8 @@ test_that("estimate-simulate-re-estimate cycle: cor > 0.7 (mixed MRF)", {
   fit2 = bgm(simulated,
     variable_type = vt,
     edge_selection = FALSE, iter = 5000, warmup = 2000,
-    chains = 1, seed = 801
+    chains = 1, seed = 801,
+    display_progress = "none"
   )
 
   pw1 = as.vector(fit1$posterior_mean_associations)

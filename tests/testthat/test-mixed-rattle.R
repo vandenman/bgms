@@ -490,7 +490,8 @@ test_that("bgm with NUTS + edge_selection runs on mixed data", {
     iter = 100,
     warmup = 50,
     edge_selection = TRUE,
-    update_method = "nuts"
+    update_method = "nuts",
+    display_progress = "none"
   )
 
   expect_s3_class(fit, "bgms")
