@@ -13,13 +13,14 @@ bgms_style <- function() {
 
   # "a <- 1" -> "a = 1"
   #
-  # Preserves <- inside function-call arguments, where = would be interpreted
-
-  # as a named argument (e.g. expect_message(result <- foo(), "pattern")).
+  # Preserves <<- everywhere and preserves <- inside function-call arguments,
+  # where = would be interpreted as a named argument
+  # (e.g. expect_message(result <- foo(), "pattern")).
   # Detection: the LHS expr's child node has token_before == "'('" when the
   # assignment sits inside a call's argument list.
   style$token$force_assignment_op <- function(pd) {
     to_replace <- pd$token %in% c("EQ_ASSIGN", "LEFT_ASSIGN")
+    to_replace[pd$text == "<<-"] <- FALSE
     if(any(to_replace & pd$token == "LEFT_ASSIGN")) {
       for(i in which(to_replace & pd$token == "LEFT_ASSIGN")) {
         lhs_row <- i - 1
