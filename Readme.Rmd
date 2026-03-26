@@ -1,30 +1,20 @@
 ---
 output: github_document
-bibliography: inst/REFERENCES.bib
-csl: inst/apa.csl
 ---
 
 <!-- README.md is generated from Readme.Rmd. Please edit that file -->
 
-```{r, echo = FALSE, message=F}
+```{r, echo = FALSE, message = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
   fig.path = "man/figures/README-",
   dev = "png",
-  dpi = 200,
-  knitr::opts_chunk$set(comment = NA)
+  dpi = 200
 )
-library(bgms)
 ```
 
-<!-- # bgms <a href="https://bayesiangraphicalmodeling.com"><img src="man/figures/bgms_sticker.svg" height="200" align="right" alt="bgms website" /></a> -->
-<div style="display:flex; align-items:center; justify-content:space-between;">
-  <h1>bgms</h1>
-  <a href="https://bayesiangraphicalmodeling.com">
-    <img src="man/figures/bgms_sticker.svg" height="200" alt="bgms website" />
-  </a>
-</div>
+![bgms](man/figures/bgms-banner.svg)
 
 <!-- badges: start -->
 [![CRAN Version](https://www.r-pkg.org/badges/version/bgms)](https://cran.r-project.org/package=bgms)
@@ -34,96 +24,84 @@ library(bgms)
 [![Codecov](https://codecov.io/gh/Bayesian-Graphical-Modelling-Lab/bgms/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Bayesian-Graphical-Modelling-Lab/bgms)
 <!-- badges: end -->
 
-
 **Bayesian analysis of graphical models**
 
-The **bgms** package implements Bayesian estimation and model comparison for
-graphical models of binary, ordinal, continuous, and mixed variables
-[@MarsmanVandenBerghHaslbeck_2025].
-It supports **ordinal Markov random fields (MRFs)** for discrete data,
-**Gaussian graphical models (GGMs)** for continuous data, and **mixed MRFs**
-that combine discrete and continuous variables in a single network.
-The likelihood is approximated with a pseudolikelihood, and Markov chain Monte
-Carlo (MCMC) methods are used to sample from the corresponding pseudoposterior
-distribution of the model parameters.
+The **bgms** package provides Bayesian estimation and edge selection for
+Markov random field models of mixed binary, ordinal, and continuous
+variables. The variable types in the data determine the model: an
+**ordinal MRF** for ordinal data, a **Gaussian graphical model** for
+continuous data, or a **mixed MRF** combining both. Posterior inference
+uses Markov chain Monte Carlo, combining a Metropolis approach for between-model
+moves (i.e., edge selection) with the No-U-Turn sampler for within-model 
+parameter updates. The package supports both single-threaded and parallel 
+chains, and uses a C++ backend for computational efficiency.
 
 ## Main functions
 
-The package has two main entry points:
+- `bgm()` — estimate a graphical model in a one-sample design.
+- `bgmCompare()` — compare graphical models between groups.
 
-- `bgm()` – estimates a single network in a one-sample design.
-  Use `variable_type = "ordinal"` for an MRF, `"continuous"` for a GGM,
-  or a per-variable vector mixing `"ordinal"`, `"blume-capel"`, and
-  `"continuous"` for a mixed MRF.
-- `bgmCompare()` – compares networks between groups in an independent-sample
-  design.
-
-## Effect selection
-
-Both functions support **effect selection** with spike-and-slab priors:
-
-- **Edges in one-sample designs**:
-  `bgm()` models the presence or absence of edges between variables. Posterior
-  inclusion probabilities indicate the plausibility of each edge and can be
-  converted into Bayes factors for conditional independence tests [see @MarsmanVandenBerghHaslbeck_2025; @SekulovskiEtAl_2024].
-
-- **Communities/clusters in one-sample designs**:
-  `bgm()` can also model community structure. Posterior probabilities for the
-  number of clusters quantify the plausibility of clustering solutions and can
-  be converted into Bayes factors [see @SekulovskiEtAl_2025].
-
-- **Group differences in independent-sample designs**:
-  `bgmCompare()` models differences in edge weights and category thresholds
-  between groups. Posterior inclusion probabilities indicate the plausibility
-  of parameter differences and can be converted into Bayes factors for tests of
-  parameter equivalence [see @MarsmanWaldorpSekulovskiHaslbeck_2024].
-
-## Learn more
-
-For worked examples and tutorials, see the package vignettes:
-
-- [Getting Started](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/intro.html)
-- [Model Comparison](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/comparison.html)
-- [Diagnostics and Spike-and-Slab Summaries](https://bayesian-graphical-modelling-lab.github.io/bgms/articles/diagnostics.html)
-
-You can also access these directly from R with:
-
-```r
-browseVignettes("bgms")
-```
-
-
-## Why use Markov Random Fields?
-
-Graphical models or networks have become central in recent psychological and psychometric research [@RobinaughEtAl_2020; @MarsmanRhemtulla_2022_SIintro; @ContrerasEtAl_2019]. Most are **Markov random field (MRF)** models, where the graph structure reflects partial associations between variables [@KindermannSnell1980].
-
-In an MRF, a missing edge between two variables implies **conditional independence** given the rest of the network [@Lauritzen2004]. In other words, the remaining variables fully explain away any potential association between the unconnected pair.
-
-## Why use a Bayesian approach?
-
-When analyzing an MRF, we often want to compare competing hypotheses:
-
-- **Edge presence vs. edge absence** (conditional dependence vs. independence) in one-sample designs.
-- **Parameter difference vs. parameter equivalence** in independent-sample designs.
-
-Frequentist approaches are limited in such comparisons: they can reject a null hypothesis, but they cannot provide evidence *for* it. As a result, when an edge or difference is excluded, it remains unclear whether this reflects true absence or simply insufficient power.
-
-Bayesian inference avoids this problem. Using **inclusion Bayes factors** [@HuthEtAl_2023_intro; @SekulovskiEtAl_2024], we can quantify evidence in both directions:
-
-- **Evidence of edge presence** vs. **evidence of edge absence**, or
-- **Evidence of parameter difference** vs. **evidence of parameter equivalence**.
-
-This makes it possible not only to detect structure and group differences, but also to conclude when there is an *absence of evidence*.
+Both functions support **edge selection** via spike-and-slab priors,
+yielding posterior inclusion probabilities for each
+edge. `bgm()` can additionally model **community structure**, and
+`bgmCompare()` can test for **group differences** in individual
+parameters.
 
 ## Installation
 
-The current developmental version can be installed with	
-```{r gh-installation, eval = FALSE}	
-if(!requireNamespace("remotes")) {
-  install.packages("remotes")
-}
+Install from CRAN:
+
+```r
+install.packages("bgms")
+```
+
+Or install the development version from GitHub:
+
+```r
+# install.packages("remotes")
 remotes::install_github("Bayesian-Graphical-Modelling-Lab/bgms")
 ```
 
+## Citation
 
-## References
+If you use bgms in your work, please cite:
+
+1. Marsman, M., van den Bergh, D., & Haslbeck, J. M. B. (2025).
+   Bayesian analysis of the ordinal Markov random field.
+   *Psychometrika*, *90*(1), 146–182.
+   [DOI:10.1017/psy.2024.4](https://doi.org/10.1017/psy.2024.4)
+
+Related methodological papers:
+
+2. Sekulovski, N., Keetelaar, S., Huth, K. B. S., Wagenmakers, E.-J.,
+   van Bork, R., van den Bergh, D., & Marsman, M. (2024). Testing
+   conditional independence in psychometric networks: An analysis of
+   three Bayesian methods. *Multivariate Behavioral Research*, *59*,
+   913–933.
+   [DOI:10.1080/00273171.2024.2345915](https://doi.org/10.1080/00273171.2024.2345915)
+
+3. Marsman, M., Waldorp, L. J., Sekulovski, N., & Haslbeck, J. M. B.
+   (2025). Bayes factor tests for group differences in ordinal and
+   binary graphical models. *Psychometrika*, *90*(5), 1809–1842.
+   [DOI:10.1017/psy.2025.10060](https://doi.org/10.1017/psy.2025.10060)
+
+4. Sekulovski, N., Arena, G., Haslbeck, J. M. B., Huth, K. B. S.,
+   Friel, N., & Marsman, M. (2025). A stochastic block prior for
+   clustering in graphical models.
+   [PsyArXiv:29p3m](https://osf.io/preprints/psyarxiv/29p3m_v1)
+
+You can also retrieve the citation from R:
+
+```r
+citation("bgms")
+```
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+how to get started.
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant Code of
+Conduct](CODE_OF_CONDUCT.md).
