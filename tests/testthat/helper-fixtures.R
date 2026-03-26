@@ -206,13 +206,15 @@ get_bgmcompare_fit_adaptive_metropolis = function() {
 get_bgmcompare_fit_hmc = function() {
   if(is.null(.test_cache$bgmcompare_fit_hmc)) {
     data("ADHD", package = "bgms")
-    .test_cache$bgmcompare_fit_hmc = bgmCompare(
-      x = ADHD[, 2:5],
-      group_indicator = ADHD[, "group"],
-      update_method = "hamiltonian-mc",
-      iter = 25, warmup = 50, chains = 1,
-      seed = 88889,
-      display_progress = "none"
+    .test_cache$bgmcompare_fit_hmc = suppressWarnings(
+      bgmCompare(
+        x = ADHD[, 2:5],
+        group_indicator = ADHD[, "group"],
+        update_method = "hamiltonian-mc",
+        iter = 25, warmup = 50, chains = 1,
+        seed = 88889,
+        display_progress = "none"
+      )
     )
   }
   .test_cache$bgmcompare_fit_hmc
@@ -226,15 +228,17 @@ get_bgmcompare_fit_hmc_blumecapel = function() {
     rows = c(1:25, 491:515)
     # Convert language to integer: 1 for first level, 2 for second
     lang = as.integer(as.factor(Boredom[rows, "language"]))
-    .test_cache$bgmcompare_fit_hmc_bc = bgmCompare(
-      x = Boredom[rows, 2:5], # 4 ordinal variables (7 categories)
-      group_indicator = lang,
-      update_method = "hamiltonian-mc",
-      variable_type = "blume-capel",
-      baseline_category = 3,
-      iter = 25, warmup = 50, chains = 1,
-      seed = 88890,
-      display_progress = "none"
+    .test_cache$bgmcompare_fit_hmc_bc = suppressWarnings(
+      bgmCompare(
+        x = Boredom[rows, 2:5], # 4 ordinal variables (7 categories)
+        group_indicator = lang,
+        update_method = "hamiltonian-mc",
+        variable_type = "blume-capel",
+        baseline_category = 3,
+        iter = 25, warmup = 50, chains = 1,
+        seed = 88890,
+        display_progress = "none"
+      )
     )
   }
   .test_cache$bgmcompare_fit_hmc_bc
@@ -329,12 +333,14 @@ get_bgms_fit_sbm = function() {
 get_bgms_fit_hmc = function() {
   if(is.null(.test_cache$bgms_fit_hmc)) {
     data("Wenchuan", package = "bgms")
-    .test_cache$bgms_fit_hmc = bgm(
-      Wenchuan[1:50, 1:4],
-      update_method = "hamiltonian-mc",
-      iter = 25, warmup = 50, chains = 1,
-      seed = 55555,
-      display_progress = "none"
+    .test_cache$bgms_fit_hmc = suppressWarnings(
+      bgm(
+        Wenchuan[1:50, 1:4],
+        update_method = "hamiltonian-mc",
+        iter = 25, warmup = 50, chains = 1,
+        seed = 55555,
+        display_progress = "none"
+      )
     )
   }
   .test_cache$bgms_fit_hmc

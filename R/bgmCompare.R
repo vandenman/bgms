@@ -16,7 +16,7 @@
 #' \insertCite{MarsmanWaldorpSekulovskiHaslbeck_2024;textual}{bgms}, where
 #' two–group comparisons were conducted using adaptive Metropolis sampling.
 #' The present implementation generalizes that approach to more than two
-#' groups and supports additional samplers (HMC and NUTS) with staged warmup
+#' groups and supports additional samplers (NUTS) with staged warmup
 #' adaptation.
 #'
 #' Key components of the model:
@@ -54,18 +54,17 @@
 #' \itemize{
 #'   \item \strong{Adaptive Metropolis–Hastings}: componentwise random–walk
 #'     proposals with Robbins–Monro adaptation of proposal SDs.
-#'   \item \strong{Hamiltonian Monte Carlo (HMC)}: joint updates with fixed
-#'     leapfrog trajectories; step size and optionally the mass matrix are
-#'     adapted during warmup.
+#'   \item \strong{Hamiltonian Monte Carlo (HMC)} (\emph{deprecated}): joint
+#'     updates with fixed leapfrog trajectories. This method is deprecated;
+#'     use NUTS instead.
 #'   \item \strong{No–U–Turn Sampler (NUTS)}: an adaptive HMC variant with
-#'     dynamic trajectory lengths; warmup uses the same staged adaptation
-#'     schedule as HMC.
+#'     dynamic trajectory lengths; warmup uses a staged adaptation schedule.
 #' }
 #'
 #' For details on the staged adaptation schedule (fast–slow–fast phases),
 #' see \code{\link{bgm}}. In addition, when
 #' \code{difference_selection = TRUE}, updates of inclusion indicators are
-#' delayed until late warmup. In HMC/NUTS, this appends two extra phases
+#' delayed until late warmup. In NUTS, this appends two extra phases
 #' (Stage-3b and Stage-3c), so that the total number of warmup iterations
 #' exceeds the user-specified \code{warmup}.
 #'
@@ -128,14 +127,16 @@
 #'   Defaults to \code{getOption("bgms.verbose", TRUE)}. Set
 #'   \code{options(bgms.verbose = FALSE)} to suppress messages globally.
 #' @param update_method Character. Sampling algorithm:
-#'   \code{"adaptive-metropolis"}, \code{"hamiltonian-mc"}, or \code{"nuts"}.
-#'   Default: \code{"nuts"}.
+#'   \code{"adaptive-metropolis"} or \code{"nuts"}.
+#'   \code{"hamiltonian-mc"} is accepted but deprecated; use \code{"nuts"}
+#'   instead. Default: \code{"nuts"}.
 #' @param target_accept Numeric between 0 and 1. Target acceptance rate.
-#'   Defaults: 0.44 (Metropolis), 0.65 (HMC), 0.80 (NUTS).
-#' @param hmc_num_leapfrogs Integer. Leapfrog steps for HMC. Default: \code{100}.
+#'   Defaults: 0.44 (Metropolis), 0.80 (NUTS).
+#' @param hmc_num_leapfrogs `r lifecycle::badge("deprecated")` Integer.
+#'   Leapfrog steps for HMC (deprecated). Default: \code{100}.
 #' @param nuts_max_depth Integer. Maximum tree depth for NUTS. Default: \code{10}.
 #' @param learn_mass_matrix Logical. If \code{TRUE}, adapts a diagonal mass
-#' matrix during warmup (HMC/NUTS only). Default: \code{TRUE}.
+#' matrix during warmup (NUTS only). Default: \code{TRUE}.
 #' @param chains Integer. Number of parallel chains. Default: \code{4}.
 #' @param cores Integer. Number of CPU cores. Default:
 #'   \code{parallel::detectCores()}.

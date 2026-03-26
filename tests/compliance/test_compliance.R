@@ -746,13 +746,13 @@ for(entry in manifest) {
   # Run current build
   set.seed(args$seed)
   fit = tryCatch(
-    {
+    suppressWarnings({
       if(type == "bgm") {
         do.call(bgm, args)
       } else {
         do.call(bgmCompare, args)
       }
-    },
+    }),
     error = function(e) {
       cat(sprintf("ERROR: %s\n", conditionMessage(e)))
       NULL

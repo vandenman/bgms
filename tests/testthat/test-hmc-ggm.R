@@ -161,12 +161,14 @@ test_that("HMC + GGM unconstrained runs without error (p=3)", {
   colnames(x) = paste0("V", seq_len(p))
 
   expect_no_error({
-    fit = bgm(
-      x = x, variable_type = "continuous",
-      update_method = "hamiltonian-mc",
-      edge_selection = FALSE,
-      iter = 100, warmup = 50, chains = 1,
-      seed = 610, display_progress = "none"
+    fit = suppressWarnings(
+      bgm(
+        x = x, variable_type = "continuous",
+        update_method = "hamiltonian-mc",
+        edge_selection = FALSE,
+        iter = 100, warmup = 50, chains = 1,
+        seed = 610, display_progress = "none"
+      )
     )
   })
 })
@@ -183,12 +185,14 @@ test_that("HMC + GGM output has expected components", {
   x = matrix(rnorm(n * p), nrow = n)
   colnames(x) = paste0("V", seq_len(p))
 
-  fit = bgm(
-    x = x, variable_type = "continuous",
-    update_method = "hamiltonian-mc",
-    edge_selection = FALSE,
-    iter = 100, warmup = 50, chains = 1,
-    seed = 620, display_progress = "none"
+  fit = suppressWarnings(
+    bgm(
+      x = x, variable_type = "continuous",
+      update_method = "hamiltonian-mc",
+      edge_selection = FALSE,
+      iter = 100, warmup = 50, chains = 1,
+      seed = 620, display_progress = "none"
+    )
   )
 
   # Pairwise interactions should be extractable
@@ -219,6 +223,7 @@ test_that("bgm warns when using HMC with edge selection", {
   # The warning is emitted during validation, before sampling starts.
   # Constrained HMC may subsequently crash (known fragility), so we
   # capture the warning separately from any downstream error.
+  # The deprecation warning for hamiltonian-mc is also emitted.
   warned = FALSE
   tryCatch(
     withCallingHandlers(
@@ -512,12 +517,14 @@ test_that("HMC and MH posteriors agree for unconstrained GGM (p=4)", {
     seed = 680, display_progress = "none"
   )
 
-  fit_hmc = bgm(
-    x = x, variable_type = "continuous",
-    update_method = "hamiltonian-mc",
-    edge_selection = FALSE,
-    iter = n_iter, warmup = n_warmup, chains = 2,
-    seed = 681, display_progress = "none"
+  fit_hmc = suppressWarnings(
+    bgm(
+      x = x, variable_type = "continuous",
+      update_method = "hamiltonian-mc",
+      edge_selection = FALSE,
+      iter = n_iter, warmup = n_warmup, chains = 2,
+      seed = 681, display_progress = "none"
+    )
   )
 
   # Posterior means should agree within 2 pooled SDs

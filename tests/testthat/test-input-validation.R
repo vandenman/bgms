@@ -74,11 +74,18 @@ test_that("GGM accepts HMC and NUTS", {
   set.seed(42)
   x = matrix(rnorm(200), nrow = 50, ncol = 4)
 
-  # HMC should be accepted (warns about constrained integration)
+  # HMC should be accepted (warns about constrained integration + deprecation)
   expect_warning(
-    spec_hmc <- bgm_spec(
-      x = x, variable_type = "continuous", update_method = "hamiltonian-mc",
-      iter = 10, warmup = 300, chains = 1
+    withCallingHandlers(
+      spec_hmc <- bgm_spec(
+        x = x, variable_type = "continuous", update_method = "hamiltonian-mc",
+        iter = 10, warmup = 300, chains = 1
+      ),
+      warning = function(w) {
+        if(grepl("deprecated", conditionMessage(w), ignore.case = TRUE)) {
+          invokeRestart("muffleWarning")
+        }
+      }
     ),
     "numerically fragile"
   )

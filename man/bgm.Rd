@@ -114,8 +114,9 @@ the model parameters:
 \describe{
 \item{"adaptive-metropolis"}{Componentwise adaptive Metropolis–Hastings
 with Robbins–Monro proposal adaptation.}
-\item{"hamiltonian-mc"}{Hamiltonian Monte Carlo with fixed path length
-(number of leapfrog steps set by \code{hmc_num_leapfrogs}).}
+\item{"hamiltonian-mc"}{\strong{Deprecated.} Hamiltonian Monte Carlo
+with fixed path length. Use \code{"nuts"} instead. This option will
+be removed in a future release.}
 \item{"nuts"}{The No-U-Turn Sampler with RATTLE constrained integration
 for Gaussian models with edge selection.}
 }
@@ -123,17 +124,17 @@ Default: \code{"nuts"}.}
 
 \item{target_accept}{Numeric between 0 and 1. Target acceptance rate for
 the sampler. Defaults are set automatically if not supplied:
-\code{0.44} for adaptive Metropolis, \code{0.65} for HMC,
-and \code{0.80} for NUTS.}
+\code{0.44} for adaptive Metropolis and \code{0.80} for NUTS.}
 
-\item{hmc_num_leapfrogs}{Integer. Number of leapfrog steps for Hamiltonian
-Monte Carlo. Must be positive. Default: \code{100}.}
+\item{hmc_num_leapfrogs}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Integer.
+Number of leapfrog steps for Hamiltonian Monte Carlo. Only relevant when
+\code{update_method = "hamiltonian-mc"}, which is deprecated.}
 
 \item{nuts_max_depth}{Integer. Maximum tree depth in NUTS. Must be positive.
 Default: \code{10}.}
 
 \item{learn_mass_matrix}{Logical. If \code{TRUE}, adapt a diagonal mass
-matrix during warmup (HMC/NUTS only). If \code{FALSE}, use the identity
+matrix during warmup (NUTS only). If \code{FALSE}, use the identity
 matrix. Default: \code{TRUE}.}
 
 \item{chains}{Integer. Number of parallel chains to run. Default: \code{4}.}
@@ -291,7 +292,7 @@ of the model is described in
 \insertCite{MarsmanVandenBerghHaslbeck_2025;textual}{bgms}, where the ordinal
 MRF model and its Bayesian estimation procedure were first introduced. While
 the implementation in \pkg{bgms} has since been extended and updated (e.g.,
-alternative priors, parallel chains, HMC/NUTS warmup), it builds on that
+alternative priors, parallel chains, NUTS warmup), it builds on that
 original framework.
 
 Key components of the model are described in the sections below.
@@ -370,10 +371,9 @@ updates for main effects and pairwise effects. Proposal standard
 deviations are adapted during burn–in via Robbins–Monro updates
 toward a target acceptance rate.
 
-\item \strong{Hamiltonian Monte Carlo (HMC)}: Joint updates of all
-parameters using fixed–length leapfrog trajectories. Step size is
-tuned during warmup via dual–averaging; the diagonal mass matrix can
-also be adapted if \code{learn_mass_matrix = TRUE}.
+\item \strong{Hamiltonian Monte Carlo (HMC)} (\emph{deprecated}): Joint
+updates of all parameters using fixed–length leapfrog trajectories.
+This method is deprecated; use NUTS instead.
 
 \item \strong{No–U–Turn Sampler (NUTS)}: An adaptive extension of HMC
 that dynamically chooses trajectory lengths. Warmup uses a staged
@@ -400,7 +400,7 @@ split into several phases:
 
 \itemize{
 \item \strong{Stage 1 (fast adaptation)}: A short initial interval
-where only step size (for HMC/NUTS) is adapted, allowing the chain
+where only step size (for NUTS) is adapted, allowing the chain
 to move quickly toward the typical set.
 
 \item \strong{Stage 2 (slow windows)}: A sequence of expanding,
@@ -413,7 +413,7 @@ for improved stability.
 end of the core warmup where the step size is adapted one final time.
 
 \item \strong{Stage 3b (proposal–SD tuning)}: Only active when
-\code{edge_selection = TRUE} under HMC/NUTS. In this phase,
+\code{edge_selection = TRUE} under NUTS. In this phase,
 Robbins–Monro adaptation of proposal standard deviations is
 performed for the Metropolis steps used in edge–selection moves.
 
@@ -425,13 +425,13 @@ updates for edge inclusion indicators are switched on.
 
 When \code{edge_selection = FALSE}, the total number of warmup iterations
 equals the user–specified \code{burnin}. When \code{edge_selection = TRUE}
-and \code{update_method} is \code{"nuts"} or \code{"hamiltonian-mc"},
+and \code{update_method} is \code{"nuts"},
 the schedule automatically appends additional Stage-3b and Stage-3c
 intervals, so the total warmup is strictly greater than the requested
 \code{burnin}.
 
 After all warmup phases, the sampler transitions to the sampling phase
-with adaptation disabled. Step size and mass matrix (for HMC/NUTS) are
+with adaptation disabled. Step size and mass matrix (for NUTS) are
 fixed at their learned values, and proposal SDs remain constant.
 
 This staged design improves stability of proposals and ensures that both

@@ -25,6 +25,15 @@ vs = function(...) {
   do.call(validate_sampler, args)
 }
 
+# Suppress only deprecation warnings, let others through
+suppress_hmc_deprecation = function(expr) {
+  withCallingHandlers(expr, warning = function(w) {
+    if(grepl("deprecated", conditionMessage(w), ignore.case = TRUE)) {
+      invokeRestart("muffleWarning")
+    }
+  })
+}
+
 
 # ==============================================================================
 # 1. update_method  — match.arg
@@ -41,8 +50,15 @@ test_that("explicit 'adaptive-metropolis' passes through", {
 })
 
 test_that("explicit 'hamiltonian-mc' passes through", {
-  res = vs(update_method = "hamiltonian-mc")
+  res = suppress_hmc_deprecation(vs(update_method = "hamiltonian-mc"))
   expect_equal(res$update_method, "hamiltonian-mc")
+})
+
+test_that("hamiltonian-mc emits deprecation warning", {
+  expect_warning(
+    vs(update_method = "hamiltonian-mc"),
+    "deprecated"
+  )
 })
 
 test_that("invalid update_method errors", {
@@ -70,15 +86,19 @@ test_that("GGM + explicit 'nuts' OK", {
 })
 
 test_that("GGM + explicit 'hamiltonian-mc' OK", {
-  res = vs(is_continuous = TRUE, update_method = "hamiltonian-mc")
+  res = suppress_hmc_deprecation(
+    vs(is_continuous = TRUE, update_method = "hamiltonian-mc")
+  )
   expect_equal(res$update_method, "hamiltonian-mc")
 })
 
 test_that("GGM + hamiltonian-mc + edge_selection warns", {
   expect_warning(
-    res <- vs(
-      is_continuous = TRUE, edge_selection = TRUE,
-      update_method = "hamiltonian-mc"
+    suppress_hmc_deprecation(
+      res <- vs(
+        is_continuous = TRUE, edge_selection = TRUE,
+        update_method = "hamiltonian-mc"
+      )
     ),
     "numerically fragile"
   )
@@ -96,7 +116,9 @@ test_that("NULL target_accept → 0.44 for adaptive-metropolis", {
 })
 
 test_that("NULL target_accept → 0.65 for hamiltonian-mc", {
-  res = vs(update_method = "hamiltonian-mc", target_accept = NULL)
+  res = suppress_hmc_deprecation(
+    vs(update_method = "hamiltonian-mc", target_accept = NULL)
+  )
   expect_equal(res$target_accept, 0.65)
 })
 
@@ -154,9 +176,11 @@ test_that("negative warmup errors", {
 
 test_that("no-edge-selection: warmup < 20 warns (HMC)", {
   expect_warning(
-    vs(
-      update_method = "hamiltonian-mc", warmup = 10L,
-      edge_selection = FALSE, verbose = TRUE
+    suppress_hmc_deprecation(
+      vs(
+        update_method = "hamiltonian-mc", warmup = 10L,
+        edge_selection = FALSE, verbose = TRUE
+      )
     ),
     "no mass matrix"
   )
@@ -164,9 +188,11 @@ test_that("no-edge-selection: warmup < 20 warns (HMC)", {
 
 test_that("no-edge-selection: 20 <= warmup < 150 warns (HMC)", {
   expect_warning(
-    vs(
-      update_method = "hamiltonian-mc", warmup = 50L,
-      edge_selection = FALSE, verbose = TRUE
+    suppress_hmc_deprecation(
+      vs(
+        update_method = "hamiltonian-mc", warmup = 50L,
+        edge_selection = FALSE, verbose = TRUE
+      )
     ),
     "proportional allocation"
   )
@@ -174,9 +200,11 @@ test_that("no-edge-selection: 20 <= warmup < 150 warns (HMC)", {
 
 test_that("no-edge-selection: warmup >= 150 no warning (HMC)", {
   expect_silent(
-    vs(
-      update_method = "hamiltonian-mc", warmup = 200L,
-      edge_selection = FALSE, verbose = TRUE
+    suppress_hmc_deprecation(
+      vs(
+        update_method = "hamiltonian-mc", warmup = 200L,
+        edge_selection = FALSE, verbose = TRUE
+      )
     )
   )
 })

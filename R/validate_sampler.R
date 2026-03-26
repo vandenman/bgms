@@ -107,6 +107,15 @@ validate_sampler = function(update_method,
     choices = c("nuts", "adaptive-metropolis", "hamiltonian-mc")
   )
 
+  if(update_method == "hamiltonian-mc") {
+    .Deprecated(
+      msg = paste(
+        "update_method = \"hamiltonian-mc\" is deprecated and will be",
+        "removed in a future release. Use update_method = \"nuts\" instead."
+      )
+    )
+  }
+
   # --- target_accept ----------------------------------------------------------
   if(is_continuous && edge_selection && update_method == "hamiltonian-mc") {
     warning(

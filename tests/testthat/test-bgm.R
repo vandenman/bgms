@@ -130,6 +130,39 @@ test_that("bgm GGM posterior precision diagonals are positive", {
 })
 
 # ==============================================================================
+# HMC Deprecation Test
+# ==============================================================================
+# Pure HMC is deprecated. Verify that both bgm() and bgmCompare() emit a
+# deprecation warning when update_method = "hamiltonian-mc".
+
+test_that("bgm emits deprecation warning for hamiltonian-mc", {
+  data("Wenchuan", package = "bgms")
+  expect_warning(
+    bgm(
+      Wenchuan[1:20, 1:3],
+      update_method = "hamiltonian-mc",
+      iter = 5, warmup = 10, chains = 1,
+      seed = 99, display_progress = "none"
+    ),
+    "deprecated"
+  )
+})
+
+test_that("bgmCompare emits deprecation warning for hamiltonian-mc", {
+  data("ADHD", package = "bgms")
+  expect_warning(
+    bgmCompare(
+      x = ADHD[, 2:4],
+      group_indicator = ADHD[, "group"],
+      update_method = "hamiltonian-mc",
+      iter = 5, warmup = 10, chains = 1,
+      seed = 99, display_progress = "none"
+    ),
+    "deprecated"
+  )
+})
+
+# ==============================================================================
 # HMC Reproducibility Test
 # ==============================================================================
 # HMC sampler basic functionality is covered by get_bgms_fit_hmc fixture in
@@ -140,12 +173,14 @@ test_that("bgm with HMC is reproducible", {
   fit1 = get_bgms_fit_hmc()
 
   data("Wenchuan", package = "bgms")
-  fit2 = bgm(
-    Wenchuan[1:50, 1:4],
-    update_method = "hamiltonian-mc",
-    iter = 25, warmup = 50, chains = 1,
-    seed = 55555, # Same seed as fixture
-    display_progress = "none"
+  fit2 = suppressWarnings(
+    bgm(
+      Wenchuan[1:50, 1:4],
+      update_method = "hamiltonian-mc",
+      iter = 25, warmup = 50, chains = 1,
+      seed = 55555, # Same seed as fixture
+      display_progress = "none"
+    )
   )
 
   testthat::expect_equal(fit1$raw_samples, fit2$raw_samples)
