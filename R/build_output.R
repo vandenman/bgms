@@ -199,6 +199,32 @@ build_raw_samples_list = function(raw, edge_selection, edge_prior,
 }
 
 
+# ------------------------------------------------------------------
+# needs_easybgm_s3_compat
+# ------------------------------------------------------------------
+# Returns TRUE when easybgm is loaded at a version that overwrites
+# class(fit) and uses .subset2 directly, both of which are
+# incompatible with S7 objects. In that case the builder returns a
+# plain S3 list instead of converting to S7.
+# ------------------------------------------------------------------
+needs_easybgm_s3_compat = function() {
+  if(!"easybgm" %in% loadedNamespaces()) {
+    return(FALSE)
+  }
+  ebgm_version = utils::packageVersion("easybgm")
+  if(ebgm_version < "9.0.0") {
+    warning(
+      "easybgm ", ebgm_version, " is not compatible with S7-based bgms objects. ",
+      "Running in S3 compatibility mode. ",
+      "Please update easybgm when a compatible version is available.",
+      call. = FALSE
+    )
+    return(TRUE)
+  }
+  FALSE
+}
+
+
 # ==============================================================================
 # build_output()  — dispatcher
 # ==============================================================================
@@ -482,21 +508,6 @@ build_output_bgm = function(spec, raw) {
     results["posterior_summary_indicator"] = list(NULL)
   }
   results$cache = cache
-  if(!is_continuous && "easybgm" %in% loadedNamespaces()) {
-    ebgm_version = utils::packageVersion("easybgm")
-    if(ebgm_version <= "0.2.1") {
-      warning(
-        "bgms is running in compatibility mode for easybgm (<= 0.2.1). ",
-        "This will be removed once easybgm >= 0.2.2 is on CRAN."
-      )
-      results$arguments$save = TRUE
-      if(edge_selection) {
-        results$indicator = extract_indicators(results)
-      }
-      results$interactions = extract_pairwise_interactions(results)
-      results$thresholds = extract_main_effects(results)
-    }
-  }
 
   # --- NUTS diagnostics -------------------------------------------------------
   if(s$update_method == "nuts") {
@@ -507,7 +518,11 @@ build_output_bgm = function(spec, raw) {
   }
 
   results$.bgm_spec = spec
-  s3_list_to_bgms(results)
+  if(needs_easybgm_s3_compat()) {
+    results
+  } else {
+    s3_list_to_bgms(results)
+  }
 }
 
 
@@ -783,7 +798,11 @@ build_output_mixed_mrf = function(spec, raw) {
   }
 
   results$.bgm_spec = spec
-  s3_list_to_bgms(results)
+  if(needs_easybgm_s3_compat()) {
+    results
+  } else {
+    s3_list_to_bgms(results)
+  }
 }
 
 
@@ -974,7 +993,11 @@ build_output_compare = function(spec, raw) {
   }
 
   results$.bgm_spec = spec
-  s3_list_to_bgmCompare(results)
+  if(needs_easybgm_s3_compat()) {
+    results
+  } else {
+    s3_list_to_bgmCompare(results)
+  }
 }
 
 
