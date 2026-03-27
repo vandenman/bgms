@@ -41,7 +41,6 @@ If helpful, add a minimal code example that demonstrates the new behaviour.
 
 - [ ] Updated function documentation for any signature or behaviour changes
 - [ ] Regenerated `man/*.Rd` files if roxygen comments changed
-- [ ] Updated `_pkgdown.yml` if adding a new exported function
 - [ ] Added or updated `NEWS.md` entry if the change affects users
 
 ## Testing and Validation
@@ -56,7 +55,6 @@ source("inst/styler/bgms_style.R")
 styler::style_pkg(style = bgms_style)
 ```
 
-- [ ] Checked test files for styled `result =` captures that must be reverted to `result <-`
 - [ ] Ran `lintr::lint_package()`
 - [ ] Ran `roxygen2::roxygenise()` if roxygen comments changed
 - [ ] Ran `rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"))` for non-trivial changes
