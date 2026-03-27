@@ -32,6 +32,7 @@ Imports:
     Rcpp (>= 1.0.7), 
     RcppParallel, 
     Rdpack, 
+    S7,
     methods, 
     lifecycle,
     stats

@@ -124,7 +124,7 @@ summary.bgms = function(object, ...) {
 
     if(!is.null(object$posterior_summary_pairwise_allocations)) {
       out$allocations = object$posterior_summary_pairwise_allocations
-      out$mean_allocations = object$posterior_mean_allocations
+      out$mean_allocations = get_posterior_mean(object, "allocations")
       out$mode_allocations = object$posterior_mode_allocations
       out$num_blocks = object$posterior_num_blocks
     }
@@ -261,15 +261,15 @@ print.summary.bgms = function(x, digits = 3, ...) {
 #' @export
 coef.bgms = function(object, ...) {
   out = list(
-    main = object$posterior_mean_main,
-    pairwise = object$posterior_mean_associations
+    main = get_posterior_mean(object, "main"),
+    pairwise = get_posterior_mean(object, "associations")
   )
-  if(!is.null(object$posterior_mean_indicator)) {
-    out$indicator = object$posterior_mean_indicator
+  if(!is.null(get_posterior_mean(object, "indicator"))) {
+    out$indicator = get_posterior_mean(object, "indicator")
   }
 
-  if(!is.null(object$posterior_mean_allocations)) {
-    out$mean_allocations = object$posterior_mean_allocations
+  if(!is.null(get_posterior_mean(object, "allocations"))) {
+    out$mean_allocations = get_posterior_mean(object, "allocations")
     out$mode_allocations = object$posterior_mode_allocations
     out$num_blocks = object$posterior_num_blocks
   }
@@ -280,9 +280,10 @@ coef.bgms = function(object, ...) {
 
 #' Access elements of a bgms object
 #'
-#' @description Intercepts access to \code{posterior_summary_*} fields and
-#'   triggers lazy computation from cache when needed. All other fields pass
-#'   through using standard list extraction.
+#' @description Provides \code{$} access to S7 properties. Lazy
+#'   \code{posterior_summary_*} properties trigger computation on first
+#'   access via S7 property getters. Also supports legacy S3 list-based
+#'   fit objects.
 #'
 #' @param x A \code{bgms} object.
 #' @param name Name of the element to access.
@@ -293,17 +294,21 @@ coef.bgms = function(object, ...) {
 #' @export
 #' @keywords internal
 `$.bgms` = function(x, name) {
-  if(startsWith(name, "posterior_summary_")) {
-    cache = .subset2(x, "cache")
-    if(!is.null(cache)) {
-      ensure_summaries(x)
-      val = cache[[name]]
-      if(!is.null(val)) {
-        return(val)
+  if(inherits(x, "S7_object")) {
+    S7::prop(x, name)
+  } else {
+    if(startsWith(name, "posterior_summary_")) {
+      cache = .subset2(x, "cache")
+      if(!is.null(cache)) {
+        ensure_summaries(x)
+        val = cache[[name]]
+        if(!is.null(val)) {
+          return(val)
+        }
       }
     }
+    .subset2(x, name)
   }
-  .subset2(x, name)
 }
 
 
@@ -313,17 +318,37 @@ coef.bgms = function(object, ...) {
 #' @export
 #' @keywords internal
 `[[.bgms` = function(x, name, ...) {
-  if(is.character(name) && startsWith(name, "posterior_summary_")) {
-    cache = .subset2(x, "cache")
-    if(!is.null(cache)) {
-      ensure_summaries(x)
-      val = cache[[name]]
-      if(!is.null(val)) {
-        return(val)
+  if(inherits(x, "S7_object")) {
+    if(is.character(name)) {
+      S7::prop(x, name)
+    } else {
+      stop("numeric indexing is not supported for bgms objects")
+    }
+  } else {
+    if(is.character(name) && startsWith(name, "posterior_summary_")) {
+      cache = .subset2(x, "cache")
+      if(!is.null(cache)) {
+        ensure_summaries(x)
+        val = cache[[name]]
+        if(!is.null(val)) {
+          return(val)
+        }
       }
     }
+    .subset2(x, name)
   }
-  .subset2(x, name)
+}
+
+
+#' @method names bgms
+#' @export
+#' @keywords internal
+names.bgms = function(x) {
+  if(inherits(x, "S7_object")) {
+    S7::prop(x, ".field_names")
+  } else {
+    NextMethod()
+  }
 }
 
 

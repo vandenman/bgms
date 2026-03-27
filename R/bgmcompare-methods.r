@@ -301,7 +301,8 @@ coef.bgmCompare = function(object, ...) {
 
   # ============================================================
   # ---- main effects ----
-  array3d_main = to_array3d(object$raw_samples$main)
+  raw = get_raw_samples(object)
+  array3d_main = to_array3d(raw$main)
   stopifnot(!is.null(array3d_main))
   mean_main = apply(array3d_main, 3, mean)
 
@@ -335,7 +336,7 @@ coef.bgmCompare = function(object, ...) {
 
   # ============================================================
   # ---- pairwise effects ----
-  array3d_pair = to_array3d(object$raw_samples$pairwise)
+  array3d_pair = to_array3d(raw$pairwise)
   stopifnot(!is.null(array3d_pair))
   mean_pair = apply(array3d_pair, 3, mean)
 
@@ -369,7 +370,7 @@ coef.bgmCompare = function(object, ...) {
   # ============================================================
   # ---- indicators (present only if selection was used) ----
   indicators = NULL
-  array3d_ind = to_array3d(object$raw_samples$indicator)
+  array3d_ind = to_array3d(raw$indicator)
   if(!is.null(array3d_ind)) {
     mean_ind = apply(array3d_ind, 3, mean)
 
@@ -413,9 +414,10 @@ coef.bgmCompare = function(object, ...) {
 
 #' Access elements of a bgmCompare object
 #'
-#' @description Intercepts access to \code{posterior_summary_*} fields and
-#'   triggers lazy computation from cache when needed. All other fields pass
-#'   through using standard list extraction.
+#' @description Provides \code{$} access to S7 properties. Lazy
+#'   \code{posterior_summary_*} properties trigger computation on first
+#'   access via S7 property getters. Also supports legacy S3 list-based
+#'   fit objects.
 #'
 #' @param x A \code{bgmCompare} object.
 #' @param name Name of the element to access.
@@ -426,17 +428,21 @@ coef.bgmCompare = function(object, ...) {
 #' @export
 #' @keywords internal
 `$.bgmCompare` = function(x, name) {
-  if(startsWith(name, "posterior_summary_")) {
-    cache = .subset2(x, "cache")
-    if(!is.null(cache)) {
-      ensure_summaries(x)
-      val = cache[[name]]
-      if(!is.null(val)) {
-        return(val)
+  if(inherits(x, "S7_object")) {
+    S7::prop(x, name)
+  } else {
+    if(startsWith(name, "posterior_summary_")) {
+      cache = .subset2(x, "cache")
+      if(!is.null(cache)) {
+        ensure_summaries(x)
+        val = cache[[name]]
+        if(!is.null(val)) {
+          return(val)
+        }
       }
     }
+    .subset2(x, name)
   }
-  .subset2(x, name)
 }
 
 
@@ -446,15 +452,35 @@ coef.bgmCompare = function(object, ...) {
 #' @export
 #' @keywords internal
 `[[.bgmCompare` = function(x, name, ...) {
-  if(is.character(name) && startsWith(name, "posterior_summary_")) {
-    cache = .subset2(x, "cache")
-    if(!is.null(cache)) {
-      ensure_summaries(x)
-      val = cache[[name]]
-      if(!is.null(val)) {
-        return(val)
+  if(inherits(x, "S7_object")) {
+    if(is.character(name)) {
+      S7::prop(x, name)
+    } else {
+      stop("numeric indexing is not supported for bgmCompare objects")
+    }
+  } else {
+    if(is.character(name) && startsWith(name, "posterior_summary_")) {
+      cache = .subset2(x, "cache")
+      if(!is.null(cache)) {
+        ensure_summaries(x)
+        val = cache[[name]]
+        if(!is.null(val)) {
+          return(val)
+        }
       }
     }
+    .subset2(x, name)
   }
-  .subset2(x, name)
+}
+
+
+#' @method names bgmCompare
+#' @export
+#' @keywords internal
+names.bgmCompare = function(x) {
+  if(inherits(x, "S7_object")) {
+    S7::prop(x, ".field_names")
+  } else {
+    NextMethod()
+  }
 }

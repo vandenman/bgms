@@ -79,10 +79,11 @@ extract_indicators.bgms = function(bgms_object) {
   }
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$indicator)) {
-    indicators_list = bgms_object$raw_samples$indicator
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$indicator)) {
+    indicators_list = raw$indicator
     indicator_samples = do.call(rbind, indicators_list)
-    param_names = bgms_object$raw_samples$parameter_names$indicator
+    param_names = raw$parameter_names$indicator
     stopifnot("parameter_names$indicator missing in fit object" = !is.null(param_names))
     colnames(indicator_samples) = param_names
     return(indicator_samples)
@@ -115,9 +116,10 @@ extract_indicators.bgmCompare = function(bgms_object) {
   }
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$indicator)) {
-    indicator_samples = do.call(rbind, bgms_object$raw_samples$indicator)
-    param_names = bgms_object$raw_samples$parameter_names$indicators
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$indicator)) {
+    indicator_samples = do.call(rbind, raw$indicator)
+    param_names = raw$parameter_names$indicators
     if(!is.null(param_names)) {
       colnames(indicator_samples) = param_names
     }
@@ -177,7 +179,8 @@ extract_posterior_inclusion_probabilities.bgms = function(bgms_object) {
   data_columnnames = arguments$data_columnnames
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$indicator)) {
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$indicator)) {
     indicator_samples = extract_indicators(bgms_object)
     edge_means = colMeans(indicator_samples)
   } else if(!is.null(bgms_object$indicator)) {
@@ -278,8 +281,9 @@ extract_posterior_inclusion_probabilities.bgmCompare = function(bgms_object) {
   }
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$indicator)) {
-    array3d_ind = to_array3d(bgms_object$raw_samples$indicator)
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$indicator)) {
+    array3d_ind = to_array3d(raw$indicator)
     mean_ind = apply(array3d_ind, 3, mean)
 
     # reconstruct VxV matrix using the sampler’s interleaved order:
@@ -424,13 +428,14 @@ extract_pairwise_interactions.bgms = function(bgms_object) {
   var_names = arguments$data_columnnames
 
   # Current format (0.1.6.0+): raw samples
-  if(!is.null(bgms_object$raw_samples)) {
-    mats = bgms_object$raw_samples$pairwise
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw)) {
+    mats = raw$pairwise
     mat = do.call(rbind, mats)
 
     # Use stored parameter names when available (correct for all model types
     # including mixed MRF where block order differs from upper-triangle order)
-    stored_names = bgms_object$raw_samples$parameter_names$pairwise
+    stored_names = raw$parameter_names$pairwise
     if(!is.null(stored_names)) {
       edge_names = stored_names
     } else {
@@ -481,14 +486,15 @@ extract_pairwise_interactions.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$pairwise)) {
-    pairwise_samples = do.call(rbind, bgms_object$raw_samples$pairwise)
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$pairwise)) {
+    pairwise_samples = do.call(rbind, raw$pairwise)
 
     num_vars = bgms_object$arguments$num_variables
     num_pairs = num_vars * (num_vars - 1) / 2
 
     pairwise_samples = pairwise_samples[, 1:num_pairs]
-    colnames(pairwise_samples) = bgms_object$raw_samples$parameter_names$pairwise_baseline
+    colnames(pairwise_samples) = raw$parameter_names$pairwise_baseline
 
     return(pairwise_samples)
   }
@@ -563,12 +569,13 @@ extract_main_effects.bgms = function(bgms_object) {
 
   # Mixed MRF: return pre-built list from posterior_mean_main
   if(isTRUE(arguments$is_mixed)) {
-    return(bgms_object$posterior_mean_main)
+    return(get_posterior_mean(bgms_object, "main"))
   }
 
   # OMRF: return pre-built threshold matrix
-  if(!is.null(bgms_object$posterior_mean_main)) {
-    return(bgms_object$posterior_mean_main)
+  pm_main = get_posterior_mean(bgms_object, "main")
+  if(!is.null(pm_main)) {
+    return(pm_main)
   }
 
   # Deprecated format (0.1.4–0.1.5): $thresholds
@@ -598,14 +605,15 @@ extract_main_effects.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$main)) {
-    main_samples = do.call(rbind, bgms_object$raw_samples$main)
+  raw = get_raw_samples(bgms_object)
+  if(!is.null(raw$main)) {
+    main_samples = do.call(rbind, raw$main)
 
     num_vars = bgms_object$arguments$num_variables
-    num_main = length(bgms_object$raw_samples$parameter_names$main_baseline)
+    num_main = length(raw$parameter_names$main_baseline)
 
     main_samples = main_samples[, 1:num_main]
-    colnames(main_samples) = bgms_object$raw_samples$parameter_names$main_baseline
+    colnames(main_samples) = raw$parameter_names$main_baseline
 
     return(main_samples)
   }
@@ -687,7 +695,7 @@ extract_group_params.bgmCompare = function(bgms_object) {
   arguments = extract_arguments(bgms_object)
 
   # Current format (0.1.6.0+)
-  if(!is.null(bgms_object$raw_samples$main)) {
+  if(!is.null(get_raw_samples(bgms_object)$main)) {
     return(.extract_group_params_current(bgms_object, arguments))
   }
 
@@ -725,7 +733,8 @@ extract_group_params.bgmCompare = function(bgms_object) {
 
   # ============================================================
   # ---- main effects ----
-  array3d_main = to_array3d(bgms_object$raw_samples$main)
+  raw = get_raw_samples(bgms_object)
+  array3d_main = to_array3d(raw$main)
   mean_main = apply(array3d_main, 3, mean)
 
   stopifnot(length(mean_main) %% num_groups == 0L)
@@ -758,7 +767,7 @@ extract_group_params.bgmCompare = function(bgms_object) {
 
   # ============================================================
   # ---- pairwise effects ----
-  array3d_pair = to_array3d(bgms_object$raw_samples$pairwise)
+  array3d_pair = to_array3d(raw$pairwise)
   mean_pair = apply(array3d_pair, 3, mean)
 
   stopifnot(length(mean_pair) %% num_groups == 0L)
@@ -1164,8 +1173,8 @@ extract_precision.bgms = function(bgms_object) {
     return(invisible(NULL))
   }
 
-  rv = bgms_object$posterior_mean_residual_variance
-  associations = bgms_object$posterior_mean_associations
+  rv = get_posterior_mean(bgms_object, "residual_variance")
+  associations = get_posterior_mean(bgms_object, "associations")
 
   if(isTRUE(arguments$is_mixed)) {
     # Mixed MRF: extract the q x q continuous block, convert to precision
@@ -1292,7 +1301,7 @@ extract_log_odds.bgms = function(bgms_object) {
     return(invisible(NULL))
   }
 
-  associations = bgms_object$posterior_mean_associations
+  associations = get_posterior_mean(bgms_object, "associations")
 
   if(isTRUE(arguments$is_mixed)) {
     # Mixed MRF: extract the p x p discrete block, convert to log-odds
