@@ -91,6 +91,10 @@ void GGMModel::update_edge_parameter(size_t i, size_t j, int iteration) {
     }
 
     get_constants(i, j);
+    if (!constants_are_valid()) {
+        recompute_cholesky();
+        get_constants(i, j);
+    }
     double Phi_q1q  = constants_[0];
     (void)constants_[1]; // Phi_q1q1 computed in get_constants but unused here
 
@@ -152,9 +156,16 @@ void GGMModel::cholesky_update_after_edge(double omega_ij_old, double omega_jj_o
     cholesky_update(cholesky_of_precision_, u1_);
     cholesky_downdate(cholesky_of_precision_, u2_);
 
-    // update inverse (2x O(p^2))
-    arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
-    covariance_matrix_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
+    if (!cholesky_is_valid()) {
+        // Rank-1 downdate lost positive-definiteness; revert and recompute
+        precision_matrix_(i, j) = omega_ij_old;
+        precision_matrix_(j, i) = omega_ij_old;
+        precision_matrix_(j, j) = omega_jj_old;
+        recompute_cholesky();
+    } else {
+        arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
+        covariance_matrix_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
+    }
 
     // reset for next iteration
     vf1_[i] = 0.0;
@@ -179,8 +190,8 @@ void GGMModel::update_diagonal_parameter(size_t i, int iteration) {
 
     double ln_alpha = log_density_impl_diag(i);
 
-    ln_alpha += diagonal_prior_->log_density(MY_EXP(theta_prop));
-    ln_alpha -= diagonal_prior_->log_density(MY_EXP(theta_curr));
+    ln_alpha += diagonal_prior_->log_density(precision_proposal_(i, i));
+    ln_alpha -= diagonal_prior_->log_density(precision_matrix_(i, i));
     ln_alpha += theta_prop - theta_curr; // Jacobian adjustment
 
     if (MY_LOG(runif(rng_)) < ln_alpha) {
@@ -210,9 +221,13 @@ void GGMModel::cholesky_update_after_diag(double omega_ii_old, size_t i)
     else
         cholesky_update(cholesky_of_precision_, vf1_);
 
-    // update inverse (2x O(p^2))
-    arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
-    covariance_matrix_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
+    if (!cholesky_is_valid()) {
+        precision_matrix_(i, i) = omega_ii_old;
+        recompute_cholesky();
+    } else {
+        arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
+        covariance_matrix_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
+    }
 
     // reset for next iteration
     vf1_(i) = 0.0;
@@ -232,6 +247,10 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
 
         // Update diagonal to preserve positive-definiteness
         get_constants(i, j);
+        if (!constants_are_valid()) {
+            recompute_cholesky();
+            get_constants(i, j);
+        }
         precision_proposal_(j, j) = constrained_diagonal(0.0);
 
         // double ln_alpha = log_likelihood(precision_proposal_) - log_likelihood();
@@ -277,6 +296,10 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
 
         // Get constants for current state (with edge OFF)
         get_constants(i, j);
+        if (!constants_are_valid()) {
+            recompute_cholesky();
+            get_constants(i, j);
+        }
         double omega_prop_ij = constants_[3] * epsilon;
         double omega_prop_jj = constrained_diagonal(omega_prop_ij);
 
@@ -325,7 +348,47 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
     }
 }
 
+bool GGMModel::cholesky_is_valid() const {
+    // Downdate error signal (set by chol_up when result is not PD)
+    if (p_ > 1 && cholesky_of_precision_(1, 0) == -2.0) return false;
+    for (size_t k = 0; k < p_; ++k) {
+        if (!(cholesky_of_precision_(k, k) > 0.0)) return false; // catches <= 0 and NaN
+    }
+    return true;
+}
+
+bool GGMModel::constants_are_valid() const {
+    return constants_[3] > 0.0 && constants_[4] > 0.0;
+}
+
+void GGMModel::recompute_cholesky() {
+    bool ok = arma::chol(cholesky_of_precision_, precision_matrix_);
+    if (!ok) {
+        // Precision matrix drifted to non-PD; apply diagonal ridge correction
+        double ridge = 1e-8;
+        for (int attempt = 0; attempt < 12; ++attempt) {
+            arma::mat corrected = precision_matrix_ + ridge * arma::eye<arma::mat>(p_, p_);
+            ok = arma::chol(cholesky_of_precision_, corrected);
+            if (ok) {
+                precision_matrix_ = corrected;
+                break;
+            }
+            ridge *= 10;
+        }
+        if (!ok) {
+            // Last resort: reset to identity
+            precision_matrix_ = arma::eye<arma::mat>(p_, p_);
+            cholesky_of_precision_ = arma::eye<arma::mat>(p_, p_);
+        }
+    }
+    arma::inv(inv_cholesky_of_precision_, arma::trimatu(cholesky_of_precision_));
+    covariance_matrix_ = inv_cholesky_of_precision_ * inv_cholesky_of_precision_.t();
+}
+
 void GGMModel::do_one_metropolis_step(int iteration) {
+
+    // Recompute Cholesky from scratch to prevent numerical drift
+    recompute_cholesky();
 
     // Update off-diagonals (upper triangle)
     for (size_t i = 0; i < p_ - 1; ++i) {
@@ -369,6 +432,10 @@ void GGMModel::initialize_graph() {
                 precision_proposal_(i, j) = 0.0;
                 precision_proposal_(j, i) = 0.0;
                 get_constants(i, j);
+                if (!constants_are_valid()) {
+                    recompute_cholesky();
+                    get_constants(i, j);
+                }
                 precision_proposal_(j, j) = constrained_diagonal(0.0);
 
                 double omega_ij_old = precision_matrix_(i, j);

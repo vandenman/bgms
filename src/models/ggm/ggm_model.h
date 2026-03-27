@@ -427,7 +427,12 @@ private:
      */
     void get_constants(size_t i, size_t j);
 
-
+    /**
+     * Recompute the Cholesky factor, its inverse, and the covariance
+     * matrix from scratch.  Called once per iteration to prevent
+     * numerical drift from accumulating across rank-1 updates.
+     */
+    void recompute_cholesky();
 
     /**
      * Return the diagonal value omega_jj required to keep the precision
@@ -488,6 +493,20 @@ private:
      * @param i             Diagonal index
      */
     void cholesky_update_after_diag(double omega_ii_old, size_t i);
+
+    /**
+     * Check that the Cholesky factor is numerically valid.
+     *
+     * Returns false when the downdate error signal is set (R(1,0) == -2)
+     * or any diagonal element is non-positive or NaN.
+     */
+    bool cholesky_is_valid() const;
+
+    /**
+     * Check that constants_[3] (Phi_q1q1) and constants_[4] are positive,
+     * indicating the reparameterization constants are numerically sound.
+     */
+    bool constants_are_valid() const;
 };
 
 /**
