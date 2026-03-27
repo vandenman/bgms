@@ -16,7 +16,7 @@ bgm(
   baseline_category,
   iter = 1000,
   warmup = 1000,
-  pairwise_scale = 2.5,
+  pairwise_scale = 1,
   main_alpha = 0.5,
   main_beta = 0.5,
   edge_selection = TRUE,
@@ -88,7 +88,7 @@ bgm(
 - pairwise_scale:
 
   Double. Scale of the Cauchy prior for pairwise interaction parameters.
-  Default: `2.5`.
+  Default: `1`.
 
 - main_alpha, main_beta:
 
@@ -155,13 +155,14 @@ bgm(
 
   "hamiltonian-mc"
 
-  :   Hamiltonian Monte Carlo with fixed path length (number of leapfrog
-      steps set by `hmc_num_leapfrogs`).
+  :   **Deprecated.** Hamiltonian Monte Carlo with fixed path length.
+      Use `"nuts"` instead. This option will be removed in a future
+      release.
 
   "nuts"
 
-  :   The No-U-Turn Sampler, an adaptive form of HMC with dynamically
-      chosen trajectory lengths.
+  :   The No-U-Turn Sampler with RATTLE constrained integration for
+      Gaussian models with edge selection.
 
   Default: `"nuts"`.
 
@@ -169,12 +170,13 @@ bgm(
 
   Numeric between 0 and 1. Target acceptance rate for the sampler.
   Defaults are set automatically if not supplied: `0.44` for adaptive
-  Metropolis, `0.65` for HMC, and `0.80` for NUTS.
+  Metropolis and `0.80` for NUTS.
 
 - hmc_num_leapfrogs:
 
-  Integer. Number of leapfrog steps for Hamiltonian Monte Carlo. Must be
-  positive. Default: `100`.
+  **\[deprecated\]** Integer. Number of leapfrog steps for Hamiltonian
+  Monte Carlo. Only relevant when `update_method = "hamiltonian-mc"`,
+  which is deprecated.
 
 - nuts_max_depth:
 
@@ -182,8 +184,8 @@ bgm(
 
 - learn_mass_matrix:
 
-  Logical. If `TRUE`, adapt a diagonal mass matrix during warmup
-  (HMC/NUTS only). If `FALSE`, use the identity matrix. Default: `TRUE`.
+  Logical. If `TRUE`, adapt a diagonal mass matrix during warmup (NUTS
+  only). If `FALSE`, use the identity matrix. Default: `TRUE`.
 
 - chains:
 
@@ -237,8 +239,8 @@ bgm(
 
   :   Conditions on the observed continuous variables when computing the
       discrete full conditionals. Faster because the discrete
-      pseudo-likelihood does not depend on the continuous interaction
-      matrix Kyy.
+      pseudo-likelihood does not depend on the continuous precision
+      matrix.
 
   `"marginal"`
 
@@ -381,7 +383,7 @@ for edge selection through Bayesian variable selection. The statistical
 foundation of the model is described in Marsman et al. (2025) , where
 the ordinal MRF model and its Bayesian estimation procedure were first
 introduced. While the implementation in bgms has since been extended and
-updated (e.g., alternative priors, parallel chains, HMC/NUTS warmup), it
+updated (e.g., alternative priors, parallel chains, NUTS warmup), it
 builds on that original framework.
 
 Key components of the model are described in the sections below.
@@ -457,10 +459,9 @@ updates can be carried out using different algorithms:
   are adapted during burn–in via Robbins–Monro updates toward a target
   acceptance rate.
 
-- **Hamiltonian Monte Carlo (HMC)**: Joint updates of all parameters
-  using fixed–length leapfrog trajectories. Step size is tuned during
-  warmup via dual–averaging; the diagonal mass matrix can also be
-  adapted if `learn_mass_matrix = TRUE`.
+- **Hamiltonian Monte Carlo (HMC)** (*deprecated*): Joint updates of all
+  parameters using fixed–length leapfrog trajectories. This method is
+  deprecated; use NUTS instead.
 
 - **No–U–Turn Sampler (NUTS)**: An adaptive extension of HMC that
   dynamically chooses trajectory lengths. Warmup uses a staged
@@ -483,8 +484,8 @@ The warmup procedure in `bgm` uses a multi-stage adaptation schedule
 phases:
 
 - **Stage 1 (fast adaptation)**: A short initial interval where only
-  step size (for HMC/NUTS) is adapted, allowing the chain to move
-  quickly toward the typical set.
+  step size (for NUTS) is adapted, allowing the chain to move quickly
+  toward the typical set.
 
 - **Stage 2 (slow windows)**: A sequence of expanding, memoryless
   windows where both step size and, if `learn_mass_matrix = TRUE`, the
@@ -495,7 +496,7 @@ phases:
   core warmup where the step size is adapted one final time.
 
 - **Stage 3b (proposal–SD tuning)**: Only active when
-  `edge_selection = TRUE` under HMC/NUTS. In this phase, Robbins–Monro
+  `edge_selection = TRUE` under NUTS. In this phase, Robbins–Monro
   adaptation of proposal standard deviations is performed for the
   Metropolis steps used in edge–selection moves.
 
@@ -506,13 +507,13 @@ phases:
 
 When `edge_selection = FALSE`, the total number of warmup iterations
 equals the user–specified `burnin`. When `edge_selection = TRUE` and
-`update_method` is `"nuts"` or `"hamiltonian-mc"`, the schedule
-automatically appends additional Stage-3b and Stage-3c intervals, so the
-total warmup is strictly greater than the requested `burnin`.
+`update_method` is `"nuts"`, the schedule automatically appends
+additional Stage-3b and Stage-3c intervals, so the total warmup is
+strictly greater than the requested `burnin`.
 
 After all warmup phases, the sampler transitions to the sampling phase
-with adaptation disabled. Step size and mass matrix (for HMC/NUTS) are
-fixed at their learned values, and proposal SDs remain constant.
+with adaptation disabled. Step size and mass matrix (for NUTS) are fixed
+at their learned values, and proposal SDs remain constant.
 
 This staged design improves stability of proposals and ensures that both
 local parameters (step size) and global parameters (mass matrix,
@@ -562,93 +563,95 @@ Other model-fitting:
 fit = bgm(x = Wenchuan[, 1:5], chains = 2)
 #> 7 rows with missing values excluded (n = 355 remaining).
 #> To impute missing values instead, use na_action = "impute".
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 100/2000 (5.0%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 138/2000 (6.9%)
-#> Total   (Warmup): ⦗━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 238/4000 (5.9%)
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 50/2000 (2.5%)
+#> Chain 2 (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 69/2000 (3.5%)
+#> Total   (Warmup): ⦗━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 119/4000 (3.0%)
 #> Elapsed: 0s | ETA: 0s
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 100/2000 (5.0%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 229/2000 (11.5%)
+#> Total   (Warmup): ⦗━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 329/4000 (8.2%)
+#> Elapsed: 1s | ETA: 11s
 #> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 350/2000 (17.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 369/2000 (18.4%)
-#> Total   (Warmup): ⦗━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 719/4000 (18.0%)
-#> Elapsed: 1s | ETA: 5s
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 650/2000 (32.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 663/2000 (33.1%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1313/4000 (32.8%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 494/2000 (24.7%)
+#> Total   (Warmup): ⦗━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 844/4000 (21.1%)
+#> Elapsed: 2s | ETA: 7s
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 600/2000 (30.0%)
+#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━⦘ 772/2000 (38.6%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1372/4000 (34.3%)
 #> Elapsed: 2s | ETA: 4s
-#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 950/2000 (47.5%)
-#> Chain 2 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 953/2000 (47.6%)
-#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 1903/4000 (47.6%)
-#> Elapsed: 2s | ETA: 2s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1200/2000 (60.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1194/2000 (59.7%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2394/4000 (59.9%)
+#> Chain 1 (Warmup): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 900/2000 (45.0%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1038/2000 (51.9%)
+#> Total   (Warmup): ⦗━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━⦘ 1938/4000 (48.4%)
+#> Elapsed: 3s | ETA: 3s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1150/2000 (57.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1278/2000 (63.9%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━⦘ 2428/4000 (60.7%)
 #> Elapsed: 3s | ETA: 2s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1450/2000 (72.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1449/2000 (72.5%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2899/4000 (72.5%)
-#> Elapsed: 3s | ETA: 1s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1700/2000 (85.0%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1677/2000 (83.9%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3377/4000 (84.4%)
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1350/2000 (67.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1486/2000 (74.3%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━⦘ 2836/4000 (70.9%)
+#> Elapsed: 4s | ETA: 2s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1600/2000 (80.0%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1740/2000 (87.0%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━⦘ 3340/4000 (83.5%)
 #> Elapsed: 4s | ETA: 1s
-#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1950/2000 (97.5%)
-#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━⦘ 1920/2000 (96.0%)
-#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 3870/4000 (96.8%)
-#> Elapsed: 4s | ETA: 0s
+#> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1850/2000 (92.5%)
+#> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 1991/2000 (99.6%)
+#> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━⦘ 3841/4000 (96.0%)
+#> Elapsed: 5s | ETA: 0s
 #> Chain 1 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Chain 2 (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 2000/2000 (100.0%)
 #> Total   (Sampling): ⦗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⦘ 4000/4000 (100.0%)
-#> Elapsed: 4s | ETA: 0s
-#> NUTS issues:
-#>   - E-BFMI: 0.012 in chain 1 - see vignette('diagnostics') for guidance 
+#> Elapsed: 5s | ETA: 0s
 
 # Posterior inclusion probabilities
 summary(fit)$indicator
-#>                     mean         sd       mcse n0->0 n0->1 n1->0 n1->1
-#> intrusion-dreams  1.0000 0.00000000         NA     0     0     0  1999
-#> intrusion-flash   1.0000 0.00000000         NA     0     0     0  1999
-#> intrusion-upset   0.9215 0.26895678 0.04535242   152     5     5  1837
-#> intrusion-physior 0.8790 0.32612728 0.05637966   235     7     7  1750
-#> dreams-flash      1.0000 0.00000000         NA     0     0     0  1999
-#> dreams-upset      0.9925 0.08627717 0.01034875    14     1     1  1983
-#> dreams-physior    0.1750 0.37996710 0.04373509  1628    21    21   329
-#> flash-upset       0.1750 0.37996710 0.05637409  1637    12    13   337
-#> flash-physior     1.0000 0.00000000         NA     0     0     0  1999
-#> upset-physior     0.7530 0.43126674 0.30296297   493     1     0  1505
-#>                       n_eff     Rhat
-#> intrusion-dreams         NA       NA
-#> intrusion-flash          NA       NA
-#> intrusion-upset   35.169328 1.146108
-#> intrusion-physior 33.460267 1.417904
-#> dreams-flash             NA       NA
-#> dreams-upset      69.505050 1.297360
-#> dreams-physior    75.480010 1.228818
-#> flash-upset       45.428972 1.400036
-#> flash-physior            NA       NA
-#> upset-physior      2.026342 1.988872
+#>                     mean       mcse        sd n0->0 n0->1 n1->0 n1->1
+#> intrusion-dreams  1.0000         NA 0.0000000     0     0     0  1999
+#> intrusion-flash   1.0000         NA 0.0000000     0     0     0  1999
+#> intrusion-upset   0.9810 0.01282127 0.1365247    34     4     4  1957
+#> intrusion-physior 0.8560 0.05196810 0.3510897   277    11    11  1700
+#> dreams-flash      1.0000         NA 0.0000000     0     0     0  1999
+#> dreams-upset      0.9525 0.03163623 0.2127058    91     4     4  1900
+#> dreams-physior    0.1545 0.02733475 0.3614274  1648    42    42   267
+#> flash-upset       0.1160 0.02092315 0.3202249  1724    43    43   189
+#> flash-physior     1.0000         NA 0.0000000     0     0     0  1999
+#> upset-physior     1.0000         NA 0.0000000     0     0     0  1999
+#>                   n_eff_mixt     Rhat
+#> intrusion-dreams          NA       NA
+#> intrusion-flash           NA       NA
+#> intrusion-upset    113.38627 1.159207
+#> intrusion-physior   45.64178 1.122514
+#> dreams-flash              NA       NA
+#> dreams-upset        45.20528 1.111559
+#> dreams-physior     174.82836 1.098539
+#> flash-upset        234.23728 1.096980
+#> flash-physior             NA       NA
+#> upset-physior             NA       NA
 
 # Posterior pairwise effects
 summary(fit)$pairwise
-#>                         mean           sd        mcse       n_eff
-#> intrusion-dreams  0.31453808 0.0010858224 0.033756319  966.479369
-#> intrusion-flash   0.16876454 0.0012033992 0.032851657  745.238252
-#> intrusion-upset   0.10652085 0.0443354874 0.006745704   43.196487
-#> intrusion-physior 0.09906104 0.0472233514 0.007351353   41.264734
-#> dreams-flash      0.24852576 0.0008574681 0.030531187 1267.801979
-#> dreams-upset      0.11929710 0.0322203492 0.002920848  121.686551
-#> dreams-physior    0.01303264 0.0287125625 0.003297334   75.825977
-#> flash-upset       0.01519624 0.0334945874 0.004963402   45.539719
-#> flash-physior     0.15879730 0.0015407049 0.028892099  351.656983
-#> upset-physior     0.26760665 0.1552103266 0.107673379    2.077899
-#>                        Rhat
-#> intrusion-dreams  1.0015859
-#> intrusion-flash   1.0231001
-#> intrusion-upset   1.0457080
-#> intrusion-physior 1.1785076
-#> dreams-flash      1.0021167
-#> dreams-upset      1.0309185
-#> dreams-physior    1.0841510
-#> flash-upset       1.1525478
-#> flash-physior     0.9998035
-#> upset-physior     1.3997221
+#>                          mean         mcse         sd      n_eff
+#> intrusion-dreams  0.316420655 0.0010412601 0.03414864 1075.54444
+#> intrusion-flash   0.168297307 0.0010179908 0.03249097 1018.67981
+#> intrusion-upset   0.104324693 0.0026698585 0.03352583  171.81703
+#> intrusion-physior 0.086907577 0.0053451545 0.04353026   99.59396
+#> dreams-flash      0.249300971 0.0008778463 0.03181083 1313.14614
+#> dreams-upset      0.106782383 0.0036572438 0.03584771   93.28743
+#> dreams-physior    0.010070795 0.0019414594 0.02409951   50.49949
+#> flash-upset       0.005982217 0.0011222109 0.01687533  178.58224
+#> flash-physior     0.153678256 0.0008496596 0.02811699 1095.08478
+#> upset-physior     0.356722589 0.0010377025 0.03055969  867.26588
+#>                   n_eff_mixt      Rhat
+#> intrusion-dreams          NA 1.0015911
+#> intrusion-flash           NA 0.9997379
+#> intrusion-upset    157.68219 1.0365267
+#> intrusion-physior   66.32266 1.0742487
+#> dreams-flash              NA 1.0000443
+#> dreams-upset        96.07602 1.0410086
+#> dreams-physior     154.08476 1.1047878
+#> flash-upset        226.12854 1.1461041
+#> flash-physior             NA 1.0026826
+#> upset-physior             NA 1.0025065
 # }
 ```

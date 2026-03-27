@@ -26,28 +26,28 @@ diagnostics:
 
 ``` r
 summary(fit)$pairwise
-#>                          mean           sd         mcse      n_eff
-#> intrusion-dreams  0.316707142 0.0010098545 0.0345918840 1173.35871
-#> intrusion-flash   0.167709696 0.0009227124 0.0320985997 1210.15065
-#> intrusion-upset   0.088672349 0.0436882385 0.0056294194   60.22847
-#> intrusion-physior 0.101880020 0.0337954612 0.0024784801  185.92847
-#> dreams-flash      0.249884872 0.0008231779 0.0304023688 1364.04121
-#> dreams-upset      0.118073148 0.0013525831 0.0278851509  425.02855
-#> dreams-physior    0.001072865 0.0066034336 0.0003205022  424.49999
-#> flash-upset       0.001168627 0.0076610981 0.0004414651  301.15450
-#> flash-physior     0.152192873 0.0007852046 0.0277770152 1251.42705
-#> upset-physior     0.355534822 0.0008746934 0.0322721276 1361.26747
-#>                       Rhat
-#> intrusion-dreams  1.003034
-#> intrusion-flash   1.004751
-#> intrusion-upset   1.018105
-#> intrusion-physior 1.006861
-#> dreams-flash      1.002973
-#> dreams-upset      1.003959
-#> dreams-physior    1.000011
-#> flash-upset       1.014768
-#> flash-physior     1.001141
-#> upset-physior     1.005101
+#>                          mean         mcse         sd     n_eff
+#> intrusion-dreams  0.314546956 0.0009366491 0.03367634 1292.6949
+#> intrusion-flash   0.169225721 0.0008848512 0.03237316 1338.5346
+#> intrusion-upset   0.099074309 0.0022326916 0.03308388  265.8067
+#> intrusion-physior 0.097572257 0.0046528391 0.03523805  458.6536
+#> dreams-flash      0.250679559 0.0008157764 0.03079276 1424.8038
+#> dreams-upset      0.114415461 0.0009296699 0.02758721  885.7764
+#> dreams-physior    0.003597214 0.0006512379 0.01253777  258.0651
+#> flash-upset       0.003919395 0.0010121435 0.01312663  203.1520
+#> flash-physior     0.154130991 0.0007836221 0.02766581 1246.4464
+#> upset-physior     0.354342035 0.0009159979 0.03158497 1188.9731
+#>                   n_eff_mixt     Rhat
+#> intrusion-dreams          NA 1.002533
+#> intrusion-flash           NA 1.001224
+#> intrusion-upset    219.57117 1.038048
+#> intrusion-physior   57.35716 1.076425
+#> dreams-flash              NA 1.005227
+#> dreams-upset       880.55809 1.004976
+#> dreams-physior     370.64773 1.057157
+#> flash-upset        168.19859 1.013073
+#> flash-physior             NA 1.004678
+#> upset-physior             NA 1.006686
 ```
 
 - R-hat values close to 1 (typically below 1.01) suggest convergence
@@ -60,22 +60,47 @@ summary(fit)$pairwise
   MCSE relative to the posterior standard deviation indicates stable
   estimates, whereas a large MCSE suggests that more samples are needed.
 
-Advanced users can inspect traceplots by extracting raw samples and
-using external packages such as `coda` or `bayesplot`. Here is an
-example using the `coda` package to create a traceplot for a pairwise
-effect parameter.
+### Two ESS measures for edge-selected parameters
+
+With edge or difference selection active, the effect parameters are
+governed by spike-and-slab priors. The corresponding parameter is set to
+exactly zero when the effect is excluded, rather than being removed from
+the model. Because the parameter has a well-defined value at every
+iteration, the full chain — including zeros — is a valid sequence for
+computing ESS.
+
+- **n_eff** is the unconditional ESS, computed from the full effect
+  chain. It measures how precisely the overall posterior mean is
+  estimated.
+- **n_eff_mixt** is the mixture ESS. It measures how precisely the
+  posterior mean of the effect is estimated while accounting for the
+  additional uncertainty introduced by the spike-and-slab selection.
+  When the indicator rarely switches between inclusion and exclusion
+  (fewer than 5 transitions), `n_eff_mixt` is suppressed in the printed
+  output.
+
+### Traceplots
+
+Users can inspect traceplots by extracting raw samples directly. Here is
+an example for the pairwise effect parameter.
 
 ``` r
-library(coda)
-
 param_index = 1
-chains = lapply(fit$raw_samples$pairwise, function(mat) mat[, param_index])
-mcmc_obj = mcmc.list(lapply(chains, mcmc))
+chains = fit$raw_samples$pairwise
+nchains = length(chains)
+cols = c("firebrick", "steelblue", "darkgreen", "goldenrod")
 
-traceplot(mcmc_obj,
-  col = c("firebrick", "steelblue", "darkgreen", "goldenrod"),
-  main = "Traceplot of pairwise[1]"
+plot(chains[[1]][, param_index],
+  type = "l", col = cols[1],
+  xlab = "Iteration", ylab = "Value",
+  main = "Traceplot of pairwise[1]",
+  ylim = range(sapply(chains, function(ch) range(ch[, param_index])))
 )
+if(nchains > 1) {
+  for(c in 2:nchains) {
+    lines(chains[[c]][, param_index], col = cols[c])
+  }
+}
 ```
 
 ![](diagnostics_files/figure-html/unnamed-chunk-5-1.png)
@@ -87,12 +112,12 @@ edges:
 
 ``` r
 coef(fit)$indicator
-#>           intrusion dreams flash  upset physior
-#> intrusion    0.0000  1.000 1.000 0.8645  0.9705
-#> dreams       1.0000  0.000 1.000 1.0000  0.0260
-#> flash        1.0000  1.000 0.000 0.0230  1.0000
-#> upset        0.8645  1.000 0.023 0.0000  1.0000
-#> physior      0.9705  0.026 1.000 1.0000  0.0000
+#>           intrusion dreams  flash  upset physior
+#> intrusion    0.0000  1.000 1.0000 0.9685   0.953
+#> dreams       1.0000  0.000 1.0000 0.9990   0.078
+#> flash        1.0000  1.000 0.0000 0.0845   1.000
+#> upset        0.9685  0.999 0.0845 0.0000   1.000
+#> physior      0.9530  0.078 1.0000 1.0000   0.000
 ```
 
 - Values near 1.0: strong evidence the edge is present.
@@ -112,7 +137,7 @@ vs absence:
 p = coef(fit)$indicator[1, 5]
 BF_10 = p / (1 - p)
 BF_10
-#> [1] 32.89831
+#> [1] 20.2766
 ```
 
 Here the Bayes factor in favor of inclusion (H1) is small, meaning that
@@ -122,7 +147,7 @@ transitive, we can use it to express the evidence in favor of exclusion
 
 ``` r
 1 / BF_10
-#> [1] 0.0303967
+#> [1] 0.04931794
 ```
 
 This Bayes factor shows that there is strong evidence for the absence of
@@ -143,7 +168,7 @@ fit$nuts_diag$summary
 #> [1] 0
 #> 
 #> $min_ebfmi
-#> [1] 0.9414881
+#> [1] 0.9552931
 #> 
 #> $warmup_incomplete
 #> [1] TRUE
@@ -203,24 +228,24 @@ the first and second halves of the post-warmup samples:
 ``` r
 fit$nuts_diag$warmup_check
 #> $warmup_incomplete
-#> [1] TRUE TRUE
+#> [1] FALSE  TRUE
 #> 
 #> $energy_slope
-#>     time_idx     time_idx 
-#> -0.001635190  0.004198063 
+#>      time_idx      time_idx 
+#>  0.0008165213 -0.0021298856 
 #> 
 #> $slope_significant
 #> time_idx time_idx 
-#>     TRUE     TRUE 
+#>    FALSE     TRUE 
 #> 
 #> $ebfmi_first_half
-#> [1] 0.9586055 0.9940538
+#> [1] 0.8905554 0.9066528
 #> 
 #> $ebfmi_second_half
-#> [1] 0.9304157 0.9690688
+#> [1] 1.036465 1.138790
 #> 
 #> $var_ratio
-#> [1] 1.0693025 0.9312399
+#> [1] 1.180541 1.089849
 ```
 
 The returned list contains the following fields (one value per chain):
