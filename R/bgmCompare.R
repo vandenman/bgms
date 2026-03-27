@@ -372,6 +372,5 @@ bgmCompare = function(
   raw = run_sampler(spec)
   output = build_output(spec, raw)
 
-  output$.bgm_spec = spec
   return(output)
 }

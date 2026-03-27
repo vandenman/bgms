@@ -707,8 +707,8 @@ simulate.bgms = function(object,
 
   if(method == "posterior-mean") {
     # Use posterior mean parameters
-    pairwise = object$posterior_mean_associations
-    main = object$posterior_mean_main
+    pairwise = get_posterior_mean(object, "associations")
+    main = get_posterior_mean(object, "main")
 
     # Set R's RNG for simulate_mrf
     if(!is.null(seed)) set.seed(seed)
@@ -729,8 +729,9 @@ simulate.bgms = function(object,
     return(result)
   } else {
     # Use posterior samples with parallel processing
-    pairwise_samples = do.call(rbind, object$raw_samples$pairwise)
-    main_samples = do.call(rbind, object$raw_samples$main)
+    raw = get_raw_samples(object)
+    pairwise_samples = do.call(rbind, raw$pairwise)
+    main_samples = do.call(rbind, raw$main)
 
     total_draws = nrow(pairwise_samples)
     if(is.null(ndraws)) {
@@ -1159,8 +1160,8 @@ predict.bgms = function(object,
 
   if(method == "posterior-mean") {
     # Use posterior mean parameters
-    pairwise = object$posterior_mean_associations
-    main = object$posterior_mean_main
+    pairwise = get_posterior_mean(object, "associations")
+    main = get_posterior_mean(object, "main")
 
     probs = compute_conditional_probs(
       observations = newdata_recoded,
@@ -1181,8 +1182,9 @@ predict.bgms = function(object,
     }
   } else {
     # Use posterior samples
-    pairwise_samples = do.call(rbind, object$raw_samples$pairwise)
-    main_samples = do.call(rbind, object$raw_samples$main)
+    raw = get_raw_samples(object)
+    pairwise_samples = do.call(rbind, raw$pairwise)
+    main_samples = do.call(rbind, raw$main)
 
     total_draws = nrow(pairwise_samples)
     if(is.null(ndraws)) {
@@ -1607,8 +1609,8 @@ predict_bgms_ggm = function(object, newdata, predict_vars, data_columnnames,
   if(method == "posterior-mean") {
     # Reconstruct precision matrix from posterior means
     omega = reconstruct_precision(
-      object$posterior_mean_associations,
-      object$posterior_mean_residual_variance
+      get_posterior_mean(object, "associations"),
+      get_posterior_mean(object, "residual_variance")
     )
 
     result = compute_conditional_ggm(
@@ -1627,8 +1629,9 @@ predict_bgms_ggm = function(object, newdata, predict_vars, data_columnnames,
     }
   } else {
     # Use posterior samples
-    pairwise_samples = do.call(rbind, object$raw_samples$pairwise)
-    main_samples = do.call(rbind, object$raw_samples$main)
+    raw = get_raw_samples(object)
+    pairwise_samples = do.call(rbind, raw$pairwise)
+    main_samples = do.call(rbind, raw$main)
 
     total_draws = nrow(pairwise_samples)
     if(is.null(ndraws)) {
@@ -1724,8 +1727,8 @@ simulate_bgms_ggm = function(object, nsim, seed, method, ndraws,
   if(method == "posterior-mean") {
     # Reconstruct precision matrix from off-diagonal + separate diagonal
     precision = reconstruct_precision(
-      object$posterior_mean_associations,
-      object$posterior_mean_residual_variance
+      get_posterior_mean(object, "associations"),
+      get_posterior_mean(object, "residual_variance")
     )
 
     # Call simulate_mrf with variable_type = "continuous"
@@ -1742,8 +1745,9 @@ simulate_bgms_ggm = function(object, nsim, seed, method, ndraws,
     return(result)
   } else {
     # Use posterior samples with parallel processing
-    pairwise_samples = do.call(rbind, object$raw_samples$pairwise)
-    main_samples = do.call(rbind, object$raw_samples$main)
+    raw = get_raw_samples(object)
+    pairwise_samples = do.call(rbind, raw$pairwise)
+    main_samples = do.call(rbind, raw$main)
 
     total_draws = nrow(pairwise_samples)
     if(is.null(ndraws)) {
@@ -2050,7 +2054,7 @@ build_mixed_params_mean = function(object, arguments) {
   disc_idx = arguments$discrete_indices
   cont_idx = arguments$continuous_indices
 
-  pmat = object$posterior_mean_associations
+  pmat = get_posterior_mean(object, "associations")
 
   pairwise_disc = matrix(0, p, p)
   for(i in seq_len(p)) {
@@ -2073,15 +2077,16 @@ build_mixed_params_mean = function(object, arguments) {
     }
   }
   # Convert residual variance back to association-scale diagonal
-  rv = object$posterior_mean_residual_variance
+  rv = get_posterior_mean(object, "residual_variance")
   for(j in seq_len(q)) {
     pairwise_cont[j, j] = -1 / (2 * rv[j])
   }
 
-  mux = object$posterior_mean_main$discrete
+  pm_main = get_posterior_mean(object, "main")
+  mux = pm_main$discrete
   mux[is.na(mux)] = 0
 
-  muy = as.numeric(object$posterior_mean_main$continuous[, "mean"])
+  muy = as.numeric(pm_main$continuous[, "mean"])
 
   list(pairwise_disc = pairwise_disc, pairwise_cross = pairwise_cross, pairwise_cont = pairwise_cont, mux = mux, muy = muy)
 }
@@ -2105,8 +2110,9 @@ split_mixed_raw_samples = function(object, arguments) {
   num_categories = arguments$num_categories
   is_ordinal = arguments$is_ordinal
 
-  main_all = do.call(rbind, object$raw_samples$main)
-  pairwise_all = do.call(rbind, object$raw_samples$pairwise)
+  raw = get_raw_samples(object)
+  main_all = do.call(rbind, raw$main)
+  pairwise_all = do.call(rbind, raw$pairwise)
   total_draws = nrow(main_all)
 
   # Main layout: [mux_flat | muy | cont_diag]

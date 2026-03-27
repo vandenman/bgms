@@ -506,7 +506,8 @@ build_output_bgm = function(spec, raw) {
     )
   }
 
-  results
+  results$.bgm_spec = spec
+  s3_list_to_bgms(results)
 }
 
 
@@ -781,7 +782,8 @@ build_output_mixed_mrf = function(spec, raw) {
     )
   }
 
-  results
+  results$.bgm_spec = spec
+  s3_list_to_bgms(results)
 }
 
 
@@ -971,7 +973,8 @@ build_output_compare = function(spec, raw) {
     )
   }
 
-  results
+  results$.bgm_spec = spec
+  s3_list_to_bgmCompare(results)
 }
 
 

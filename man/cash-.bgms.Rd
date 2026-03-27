@@ -20,8 +20,9 @@
 The requested element.
 }
 \description{
-Intercepts access to \code{posterior_summary_*} fields and
-triggers lazy computation from cache when needed. All other fields pass
-through using standard list extraction.
+Provides \code{$} access to S7 properties. Lazy
+\code{posterior_summary_*} properties trigger computation on first
+access via S7 property getters. Also supports legacy S3 list-based
+fit objects.
 }
 \keyword{internal}

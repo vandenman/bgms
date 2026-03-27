@@ -14,7 +14,7 @@
 # Returns: invisible(NULL). Results are stored in fit$cache.
 # ------------------------------------------------------------------
 ensure_summaries = function(fit) {
-  cache = fit$cache
+  cache = get_fit_cache(fit)
   if(is.null(cache)) {
     return(invisible(NULL))
   }
