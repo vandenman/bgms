@@ -206,17 +206,20 @@ build_raw_samples_list = function(raw, edge_selection, edge_prior,
 # class(fit) and uses .subset2 directly, both of which are
 # incompatible with S7 objects. In that case the builder returns a
 # plain S3 list instead of converting to S7.
+#
+# easybgm >= 0.4.0 (update_easybgm branch) uses extractor functions
+# and no longer overwrites class(fit), so it is S7-compatible.
 # ------------------------------------------------------------------
 needs_easybgm_s3_compat = function() {
   if(!"easybgm" %in% loadedNamespaces()) {
     return(FALSE)
   }
   ebgm_version = utils::packageVersion("easybgm")
-  if(ebgm_version < "9.0.0") {
+  if(ebgm_version < "0.4.0") {
     warning(
       "easybgm ", ebgm_version, " is not compatible with S7-based bgms objects. ",
       "Running in S3 compatibility mode. ",
-      "Please update easybgm when a compatible version is available.",
+      "Please update easybgm to version 0.4.0 or later.",
       call. = FALSE
     )
     return(TRUE)
