@@ -197,16 +197,16 @@ validate_sampler = function(update_method,
   progress_type = progress_type_from_display_progress(display_progress)
 
   list(
-    update_method     = update_method,
-    target_accept     = target_accept,
-    iter              = iter,
-    warmup            = warmup,
+    update_method = update_method,
+    target_accept = target_accept,
+    iter = iter,
+    warmup = warmup,
     hmc_num_leapfrogs = hmc_num_leapfrogs,
-    nuts_max_depth    = nuts_max_depth,
+    nuts_max_depth = nuts_max_depth,
     learn_mass_matrix = learn_mass_matrix,
-    chains            = chains,
-    cores             = cores,
-    seed              = seed,
-    progress_type     = progress_type
+    chains = chains,
+    cores = cores,
+    seed = seed,
+    progress_type = progress_type
   )
 }

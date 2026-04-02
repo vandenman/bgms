@@ -163,6 +163,55 @@ std::pair<arma::vec, arma::vec> leapfrog_constrained(
 );
 
 
+// ---------------------------------------------------------------------------
+// Constrained leapfrog with runtime reversibility check
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of a constrained leapfrog step with reversibility information.
+ */
+struct ConstrainedLeapfrogResult {
+  arma::vec theta;    ///< Updated position
+  arma::vec r;        ///< Updated momentum
+  bool reversible;    ///< Whether the forward-backward check passed
+};
+
+
+/**
+ * Constrained leapfrog step with a runtime reversibility check.
+ *
+ * Performs a forward constrained leapfrog step, then a backward step
+ * (negate momentum, step forward, negate again).  If the round-trip
+ * position differs from the original by more than factor * eps^2
+ * in max-norm, the step is flagged as non-reversible.
+ *
+ * This is the runtime analogue of Mici's ConstrainedLeapfrogIntegrator
+ * reverse check (Zappa et al., 2018; Lelièvre et al., 2019), adapted
+ * to use eps^2-scaled tolerance matching the O(eps^2) column-coupling
+ * error of the direct SHAKE solver.
+ *
+ * @param theta                Current position (parameter vector)
+ * @param r                    Current momentum vector
+ * @param eps                  Step size for integration
+ * @param memo                 Memoizer caching gradient evaluations
+ * @param inv_mass_diag        Diagonal of the inverse mass matrix
+ * @param project_position     SHAKE position projection callback
+ * @param project_momentum     RATTLE momentum projection callback
+ * @param reverse_check_tol Factor for eps^2-scaled tolerance
+ * @return ConstrainedLeapfrogResult with position, momentum, and reversibility flag
+ */
+ConstrainedLeapfrogResult leapfrog_constrained_checked(
+    const arma::vec& theta,
+    const arma::vec& r,
+    double eps,
+    Memoizer& memo,
+    const arma::vec& inv_mass_diag,
+    const ProjectPositionFn& project_position,
+    const ProjectMomentumFn& project_momentum,
+    double reverse_check_tol
+);
+
+
 /**
  * LeapfrogJointResult - Return type for multi-step leapfrog integration.
  *
