@@ -191,6 +191,9 @@ public:
    */
   bool mass_matrix_just_updated() const { return mass_matrix_updated_; }
 
+  /** Target acceptance probability for dual averaging and heuristic. */
+  double target_acceptance() const { return target_accept_; }
+
   /**
    * Reinitialize step size adaptation after mass matrix update.
    * This should be called after running heuristic_initial_step_size() with

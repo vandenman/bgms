@@ -41,7 +41,7 @@ double heuristic_initial_step_size(
     const std::function<arma::vec(const arma::vec&)>& grad,
     const std::function<std::pair<double, arma::vec>(const arma::vec&)>& joint,
     SafeRNG& rng,
-    double target_acceptance = 0.625,
+    double target_acceptance = 0.8,
     double init_step = 1.0,
     int max_attempts = 20
 );
@@ -69,7 +69,7 @@ double heuristic_initial_step_size(
     const std::function<std::pair<double, arma::vec>(const arma::vec&)>& joint,
     const arma::vec& inv_mass_diag,
     SafeRNG& rng,
-    double target_acceptance = 0.625,
+    double target_acceptance = 0.8,
     double init_step = 1.0,
     int max_attempts = 20
 );
@@ -101,7 +101,7 @@ double heuristic_initial_step_size_constrained(
     const ProjectPositionFn& project_position,
     const ProjectMomentumFn& project_momentum,
     SafeRNG& rng,
-    double target_acceptance = 0.625,
+    double target_acceptance = 0.8,
     double init_step = 1.0,
     int max_attempts = 20
 );

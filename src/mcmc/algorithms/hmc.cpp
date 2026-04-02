@@ -56,10 +56,11 @@ double heuristic_initial_step_size(
   double kin1 = kinetic_energy(result.r, inv_mass_diag);
   double H1 = result.log_post - kin1;
 
-  int direction = 2 * (H1 - H0 > MY_LOG(0.5)) - 1;  // +1 or -1
+  double log_target = MY_LOG(target_acceptance);
+  int direction = 2 * (H1 - H0 > log_target) - 1;  // +1 or -1
 
   int attempts = 0;
-  while (direction * (H1 - H0) > -direction * MY_LOG(2.0) && attempts < max_attempts) {
+  while (direction * (H1 - H0) > -direction * log_target && attempts < max_attempts) {
     eps = (direction == 1) ? 2.0 * eps : 0.5 * eps;
 
     // Resample momentum on each iteration for step size search
@@ -114,10 +115,11 @@ double heuristic_initial_step_size_constrained(
   double kin1 = kinetic_energy(r1, inv_mass_diag);
   double H1 = logp1 - kin1;
 
-  int direction = 2 * (H1 - H0 > MY_LOG(0.5)) - 1;
+  double log_target = MY_LOG(target_acceptance);
+  int direction = 2 * (H1 - H0 > log_target) - 1;
 
   int attempts = 0;
-  while (direction * (H1 - H0) > -direction * MY_LOG(2.0) && attempts < max_attempts) {
+  while (direction * (H1 - H0) > -direction * log_target && attempts < max_attempts) {
     eps = (direction == 1) ? 2.0 * eps : 0.5 * eps;
 
     // Resample momentum and project onto cotangent space

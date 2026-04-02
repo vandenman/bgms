@@ -790,13 +790,12 @@ void update_hmc_bgmcompare(
     double current_eps = hmc_adapt.current_step_size();
     double new_eps = heuristic_initial_step_size(
       current_state, grad, joint, new_inv_mass, rng,
-      0.625,        // target_acceptance
+      hmc_adapt.target_acceptance(),
       current_eps   // init_step: use current step size as starting point
     );
     hmc_adapt.reinit_stepsize(new_eps);
   }
 }
-
 
 
 // Perform one No-U-Turn Sampler (NUTS) update step for the bgmCompare model.
@@ -967,7 +966,7 @@ StepResult update_nuts_bgmcompare(
     double current_eps = hmc_adapt.current_step_size();
     double new_eps = heuristic_initial_step_size(
       current_state, grad, joint, new_inv_mass, rng,
-      0.625,        // target_acceptance
+      hmc_adapt.target_acceptance(),
       current_eps   // init_step: use current step size as starting point
     );
     hmc_adapt.reinit_stepsize(new_eps);

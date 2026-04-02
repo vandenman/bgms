@@ -104,7 +104,7 @@ public:
                 };
                 double new_eps = heuristic_initial_step_size_constrained(
                     x, joint_fn, inv_mass, proj_pos, proj_mom, rng,
-                    0.625, adapt_->current_step_size());
+                    target_acceptance_, adapt_->current_step_size());
                 adapt_->reinit_stepsize(new_eps);
             } else {
                 adapt_->reinit_stepsize(adapt_->current_step_size());
@@ -150,7 +150,7 @@ public:
                 };
                 double new_eps = heuristic_initial_step_size_constrained(
                     x, joint_fn, new_inv_mass, proj_pos, proj_mom, rng,
-                    0.625, adapt_->current_step_size());
+                    target_acceptance_, adapt_->current_step_size());
                 adapt_->reinit_stepsize(new_eps);
             } else {
                 arma::vec theta = model.get_vectorized_parameters();
@@ -164,7 +164,7 @@ public:
                 arma::vec active_inv_mass = model.get_active_inv_mass();
                 double new_eps = heuristic_initial_step_size(
                     theta, grad_fn, joint_fn, active_inv_mass, rng,
-                    0.625, adapt_->current_step_size());
+                    target_acceptance_, adapt_->current_step_size());
                 adapt_->reinit_stepsize(new_eps);
             }
         }
