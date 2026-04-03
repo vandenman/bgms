@@ -7,16 +7,6 @@
 
 
 // =============================================================================
-// Beta-type prior used for all main effects (ordinal thresholds and BC α/β).
-// Matches OMRFModel::log_pseudoposterior_main_component.
-// =============================================================================
-
-static double log_beta_prior(double x, double alpha, double beta) {
-    return x * alpha - std::log1p(MY_EXP(x)) * (alpha + beta);
-}
-
-
-// =============================================================================
 // update_main_effect
 // =============================================================================
 // MH update for one main-effect parameter.
@@ -36,12 +26,12 @@ void MixedMRFModel::update_main_effect(int s, int c, int iteration) {
 
     // Current log-posterior
     double ll_curr = (use_marginal_pl_ ? log_marginal_omrf(s) : log_conditional_omrf(s))
-                   + log_beta_prior(current_val, main_alpha_, main_beta_);
+                   + threshold_prior_logp(threshold_prior_type_, current_val, main_alpha_, main_beta_, threshold_scale_);
 
     // Proposed log-posterior
     current = proposed;
     double ll_prop = (use_marginal_pl_ ? log_marginal_omrf(s) : log_conditional_omrf(s))
-                   + log_beta_prior(proposed, main_alpha_, main_beta_);
+                   + threshold_prior_logp(threshold_prior_type_, proposed, main_alpha_, main_beta_, threshold_scale_);
 
     double ln_alpha = ll_prop - ll_curr;
 
@@ -119,23 +109,23 @@ void MixedMRFModel::update_pairwise_discrete(int i, int j, int iteration) {
     double ll_curr, ll_prop;
     if(use_marginal_pl_) {
         ll_curr = log_marginal_omrf(i) + log_marginal_omrf(j)
-                + R::dcauchy(current_val, 0.0, disc_scale, true);
+                + interaction_prior_logp(interaction_prior_type_, current_val, disc_scale);
 
         pairwise_effects_discrete_(i, j) = proposed;
         pairwise_effects_discrete_(j, i) = proposed;
         recompute_marginal_interactions();
 
         ll_prop = log_marginal_omrf(i) + log_marginal_omrf(j)
-                + R::dcauchy(proposed, 0.0, disc_scale, true);
+                + interaction_prior_logp(interaction_prior_type_, proposed, disc_scale);
     } else {
         ll_curr = log_conditional_omrf(i) + log_conditional_omrf(j)
-                + R::dcauchy(current_val, 0.0, disc_scale, true);
+                + interaction_prior_logp(interaction_prior_type_, current_val, disc_scale);
 
         pairwise_effects_discrete_(i, j) = proposed;
         pairwise_effects_discrete_(j, i) = proposed;
 
         ll_prop = log_conditional_omrf(i) + log_conditional_omrf(j)
-                + R::dcauchy(proposed, 0.0, disc_scale, true);
+                + interaction_prior_logp(interaction_prior_type_, proposed, disc_scale);
     }
 
     double ln_alpha = ll_prop - ll_curr;
@@ -451,8 +441,8 @@ void MixedMRFModel::update_pairwise_effects_continuous_offdiag(int i, int j, int
     double cont_prop_ij = -0.5 * theta_prop_ij;
     double cont_curr_ij = pairwise_effects_continuous_(i, j);
 
-    ln_alpha += R::dcauchy(cont_prop_ij, 0.0, pairwise_scale_, true);
-    ln_alpha -= R::dcauchy(cont_curr_ij, 0.0, pairwise_scale_, true);
+    ln_alpha += interaction_prior_logp(interaction_prior_type_, cont_prop_ij, pairwise_scale_);
+    ln_alpha -= interaction_prior_logp(interaction_prior_type_, cont_curr_ij, pairwise_scale_);
 
     // Gamma(1,1) prior on changed diagonal K_jj
     ln_alpha += R::dgamma(theta_prop_jj, 1.0, 1.0, true);
@@ -565,7 +555,7 @@ void MixedMRFModel::update_pairwise_cross(int i, int j, int iteration) {
 
     // Current log-posterior
     double ll_curr = log_conditional_ggm()
-                   + R::dcauchy(current_val, 0.0, pairwise_scale_, true);
+                   + interaction_prior_logp(interaction_prior_type_, current_val, pairwise_scale_);
     if(use_marginal_pl_) {
         for(size_t s = 0; s < p_; ++s)
             ll_curr += log_marginal_omrf(s);
@@ -582,7 +572,7 @@ void MixedMRFModel::update_pairwise_cross(int i, int j, int iteration) {
     if(use_marginal_pl_) recompute_marginal_interactions();
 
     double ll_prop = log_conditional_ggm()
-                   + R::dcauchy(proposed, 0.0, pairwise_scale_, true);
+                   + interaction_prior_logp(interaction_prior_type_, proposed, pairwise_scale_);
     if(use_marginal_pl_) {
         for(size_t s = 0; s < p_; ++s)
             ll_prop += log_marginal_omrf(s);
@@ -658,17 +648,17 @@ void MixedMRFModel::update_edge_indicator_discrete(int i, int j) {
 
     double ln_alpha = ll_prop - ll_curr;
 
-    // Discrete slab prior: Cauchy(0, pairwise_scale_)
+    // Discrete slab prior: interaction_prior_type_(0, pairwise_scale_)
     // Must match the prior used in logp_and_gradient / logp_and_gradient_full.
     if(g_prop == 1) {
         // Add: slab prior, subtract proposal density, inclusion prior
-        ln_alpha += R::dcauchy(k_prop, 0.0, pairwise_scale_, true);
+        ln_alpha += interaction_prior_logp(interaction_prior_type_, k_prop, pairwise_scale_);
         ln_alpha -= R::dnorm(k_prop, k_curr, prop_sd, true);
         ln_alpha += MY_LOG(inclusion_probability_(i, j))
                   - MY_LOG(1.0 - inclusion_probability_(i, j));
     } else {
         // Delete: subtract slab prior, add reverse proposal density, inclusion prior
-        ln_alpha -= R::dcauchy(k_curr, 0.0, pairwise_scale_, true);
+        ln_alpha -= interaction_prior_logp(interaction_prior_type_, k_curr, pairwise_scale_);
         ln_alpha += R::dnorm(k_curr, k_prop, prop_sd, true);
         ln_alpha -= MY_LOG(inclusion_probability_(i, j))
                   - MY_LOG(1.0 - inclusion_probability_(i, j));
@@ -752,7 +742,7 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
     // theta_prop_ij = C[3] * epsilon, so epsilon = theta_prop_ij / C[3]
     if(g_prop == 1) {
         // Add: slab prior on proposed off-diagonal
-        ln_alpha += R::dcauchy(cont_prop_ij, 0.0, pairwise_scale_, true);
+        ln_alpha += interaction_prior_logp(interaction_prior_type_, cont_prop_ij, pairwise_scale_);
         // Subtract proposal density (in precision space, Jacobian -1/2 cancels symmetrically)
         ln_alpha -= R::dnorm(theta_prop_ij / cont_constants_[3], 0.0,
                              proposal_sd_pairwise_continuous_(i, j), true)
@@ -762,7 +752,7 @@ void MixedMRFModel::update_edge_indicator_continuous(int i, int j) {
                   - MY_LOG(1.0 - inclusion_probability_(p_ + i, p_ + j));
     } else {
         // Delete: subtract slab prior on current off-diagonal
-        ln_alpha -= R::dcauchy(cont_curr_ij, 0.0, pairwise_scale_, true);
+        ln_alpha -= interaction_prior_logp(interaction_prior_type_, cont_curr_ij, pairwise_scale_);
         // Add reverse proposal density
         double theta_curr_ij = -2.0 * cont_curr_ij;
         ln_alpha += R::dnorm(theta_curr_ij / cont_constants_[3], 0.0,
@@ -853,13 +843,13 @@ void MixedMRFModel::update_edge_indicator_cross(int i, int j) {
 
     if(g_prop == 1) {
         // Add
-        ln_alpha += R::dcauchy(k_prop, 0.0, pairwise_scale_, true);
+        ln_alpha += interaction_prior_logp(interaction_prior_type_, k_prop, pairwise_scale_);
         ln_alpha -= R::dnorm(k_prop, k_curr, prop_sd, true);
         ln_alpha += MY_LOG(inclusion_probability_(i, p_ + j))
                   - MY_LOG(1.0 - inclusion_probability_(i, p_ + j));
     } else {
         // Delete
-        ln_alpha -= R::dcauchy(k_curr, 0.0, pairwise_scale_, true);
+        ln_alpha -= interaction_prior_logp(interaction_prior_type_, k_curr, pairwise_scale_);
         ln_alpha += R::dnorm(k_curr, k_prop, prop_sd, true);
         ln_alpha -= MY_LOG(inclusion_probability_(i, p_ + j))
                   - MY_LOG(1.0 - inclusion_probability_(i, p_ + j));

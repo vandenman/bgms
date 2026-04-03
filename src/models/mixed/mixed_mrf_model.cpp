@@ -22,7 +22,10 @@ MixedMRFModel::MixedMRFModel(
     double main_alpha,
     double main_beta,
     double pairwise_scale,
-    int seed
+    int seed,
+    InteractionPriorType interaction_prior_type,
+    ThresholdPriorType threshold_prior_type,
+    double threshold_scale
 ) :
     n_(discrete_observations.n_rows),
     p_(discrete_observations.n_cols),
@@ -39,6 +42,9 @@ MixedMRFModel::MixedMRFModel(
     main_alpha_(main_alpha),
     main_beta_(main_beta),
     pairwise_scale_(pairwise_scale),
+    interaction_prior_type_(interaction_prior_type),
+    threshold_prior_type_(threshold_prior_type),
+    threshold_scale_(threshold_scale),
     use_marginal_pl_(pseudolikelihood == "marginal"),
     rng_(seed)
 {
@@ -157,6 +163,9 @@ MixedMRFModel::MixedMRFModel(const MixedMRFModel& other)
       main_alpha_(other.main_alpha_),
       main_beta_(other.main_beta_),
       pairwise_scale_(other.pairwise_scale_),
+      interaction_prior_type_(other.interaction_prior_type_),
+      threshold_prior_type_(other.threshold_prior_type_),
+      threshold_scale_(other.threshold_scale_),
       proposal_sd_main_discrete_(other.proposal_sd_main_discrete_),
       proposal_sd_main_continuous_(other.proposal_sd_main_continuous_),
       proposal_sd_pairwise_discrete_(other.proposal_sd_pairwise_discrete_),

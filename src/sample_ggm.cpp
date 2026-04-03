@@ -41,9 +41,13 @@ Rcpp::List sample_ggm(
     // Create model from R input
     double pairwise_scale = Rcpp::as<double>(inputFromR["pairwise_scale"]);
 
+    std::string ipt_str = inputFromR.containsElementNamed("interaction_prior_type")
+        ? Rcpp::as<std::string>(inputFromR["interaction_prior_type"]) : "cauchy";
+    InteractionPriorType interaction_prior_type = interaction_prior_from_string(ipt_str);
+
     GGMModel model = createGGMModelFromR(
         inputFromR, prior_inclusion_prob, initial_edge_indicators,
-        edge_selection, pairwise_scale, na_impute);
+        edge_selection, pairwise_scale, na_impute, interaction_prior_type);
 
     // Set up missing data imputation (same pattern as OMRF)
     if (na_impute && missing_index_nullable.isNotNull()) {

@@ -10,18 +10,10 @@ bgm(
   baseline_category,
   iter = 1000,
   warmup = 1000,
-  pairwise_scale = 1,
-  main_alpha = 0.5,
-  main_beta = 0.5,
+  interaction_prior = cauchy_prior(scale = 1),
+  threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
   edge_selection = TRUE,
-  edge_prior = c("Bernoulli", "Beta-Bernoulli", "Stochastic-Block"),
-  inclusion_probability = 0.5,
-  beta_bernoulli_alpha = 1,
-  beta_bernoulli_beta = 1,
-  beta_bernoulli_alpha_between = 1,
-  beta_bernoulli_beta_between = 1,
-  dirichlet_alpha = 1,
-  lambda = 1,
+  edge_prior = bernoulli_prior(0.5),
   na_action = c("listwise", "impute"),
   update_method = c("nuts", "adaptive-metropolis", "hamiltonian-mc"),
   target_accept,
@@ -35,6 +27,16 @@ bgm(
   standardize = FALSE,
   pseudolikelihood = c("conditional", "marginal"),
   verbose = getOption("bgms.verbose", TRUE),
+  pairwise_scale,
+  main_alpha,
+  main_beta,
+  inclusion_probability,
+  beta_bernoulli_alpha,
+  beta_bernoulli_beta,
+  beta_bernoulli_alpha_between,
+  beta_bernoulli_beta_between,
+  dirichlet_alpha,
+  lambda,
   interaction_scale,
   burnin,
   save,
@@ -69,41 +71,38 @@ Default: \code{1e3}.}
 samples. A minimum of 1000 iterations is enforced, with a warning if a
 smaller value is requested. Default: \code{1e3}.}
 
-\item{pairwise_scale}{Double. Scale of the Cauchy prior for pairwise
-interaction parameters. Default: \code{1}.}
+\item{interaction_prior}{A prior specification object for pairwise
+interaction parameters, created by one of the prior constructor functions:
+\itemize{
+\item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior (default).
+\item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+}
+When supplied, overrides \code{pairwise_scale}.
+Default: \code{cauchy_prior(scale = 1)}.}
 
-\item{main_alpha, main_beta}{Double. Shape parameters of the
-beta-prime prior for threshold parameters. Must be positive. If equal,
-the prior is symmetric. Defaults: \code{main_alpha = 0.5} and
-\code{main_beta = 0.5}.}
+\item{threshold_prior}{A prior specification object for threshold (main
+effect) parameters, created by one of the prior constructor functions:
+\itemize{
+\item \code{\link{beta_prime_prior}()}: Beta-prime prior (default).
+\item \code{\link{normal_threshold_prior}()}: Normal(0, scale) prior.
+}
+When supplied, overrides \code{main_alpha} and \code{main_beta}.
+Default: \code{beta_prime_prior(alpha = 0.5, beta = 0.5)}.}
 
 \item{edge_selection}{Logical. Whether to perform Bayesian edge selection.
 If \code{FALSE}, the model estimates all edges. Default: \code{TRUE}.}
 
-\item{edge_prior}{Character. Specifies the prior for edge inclusion.
-Options: \code{"Bernoulli"}, \code{"Beta-Bernoulli"}, or
-\code{"Stochastic-Block"}. Default: \code{"Bernoulli"}.}
-
-\item{inclusion_probability}{Numeric scalar. Prior inclusion probability
-of each edge (used with the Bernoulli prior). Default: \code{0.5}.}
-
-\item{beta_bernoulli_alpha, beta_bernoulli_beta}{Double. Shape parameters
-for the beta distribution in the Beta–Bernoulli and the Stochastic-Block
-priors. Must be positive. For the Stochastic-Block prior these are the shape
-parameters for the within-cluster edge inclusion probabilities.
-Defaults: \code{beta_bernoulli_alpha = 1} and \code{beta_bernoulli_beta = 1}.}
-
-\item{beta_bernoulli_alpha_between, beta_bernoulli_beta_between}{Double.
-Shape parameters for the between-cluster edge inclusion probabilities in the
-Stochastic-Block prior. Must be positive.
-Default: \code{beta_bernoulli_alpha_between = 1} and \code{beta_bernoulli_beta_between = 1}}
-
-\item{dirichlet_alpha}{Double. Concentration parameter of the Dirichlet
-prior on block assignments (used with the Stochastic Block model).
-Default: \code{1}.}
-
-\item{lambda}{Double. Rate of the zero-truncated Poisson prior on the
-number of clusters in the Stochastic Block Model. Default: \code{1}.}
+\item{edge_prior}{An edge prior specification object, or a character string
+(deprecated). Specifies the prior for edge inclusion.
+Preferred: pass an object from one of:
+\itemize{
+\item \code{\link{bernoulli_prior}()}: Fixed inclusion probability (default).
+\item \code{\link{beta_bernoulli_prior}()}: Beta-distributed inclusion.
+\item \code{\link{sbm_prior}()}: Stochastic Block Model.
+}
+Legacy character strings \code{"Bernoulli"}, \code{"Beta-Bernoulli"},
+\code{"Stochastic-Block"} are still accepted but deprecated.
+Default: \code{bernoulli_prior(0.5)}.}
 
 \item{na_action}{Character. Specifies missing data handling. Either
 \code{"listwise"} (drop rows with missing values) or \code{"impute"}
@@ -150,7 +149,7 @@ Default: \code{"per-chain"}.}
 \item{seed}{Optional integer. Random seed for reproducibility. Must be a
 single non-negative integer.}
 
-\item{standardize}{Logical. If \code{TRUE}, the Cauchy prior scale for each
+\item{standardize}{Logical. If \code{TRUE}, the prior scale for each
 pairwise interaction is adjusted based on the range of response scores.
 Variables with more response categories have larger score products
 \eqn{x_i \cdot x_j}, which typically correspond to smaller interaction
@@ -190,6 +189,36 @@ Default: \code{"conditional"}.}
 during data processing (e.g., missing data handling, variable recoding).
 Defaults to \code{getOption("bgms.verbose", TRUE)}. Set
 \code{options(bgms.verbose = FALSE)} to suppress messages globally.}
+
+\item{pairwise_scale}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double.
+Scale of the Cauchy prior for pairwise
+interaction parameters. Use \code{interaction_prior} instead.
+Default: \code{1}.}
+
+\item{main_alpha, main_beta}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double.
+Shape parameters of the beta-prime prior for threshold parameters.
+Use \code{threshold_prior} instead. Defaults: \code{main_alpha = 0.5}
+and \code{main_beta = 0.5}.}
+
+\item{inclusion_probability}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Numeric
+scalar. Use \code{edge_prior = bernoulli_prior(inclusion_probability)}
+instead. Default: \code{0.5}.}
+
+\item{beta_bernoulli_alpha, beta_bernoulli_beta}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double. Use
+\code{edge_prior = beta_bernoulli_prior(alpha, beta)} instead.
+Defaults: \code{1}.}
+
+\item{beta_bernoulli_alpha_between, beta_bernoulli_beta_between}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double. Use
+\code{edge_prior = sbm_prior(alpha_between, beta_between)} instead.
+Defaults: \code{1}.}
+
+\item{dirichlet_alpha}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double. Use
+\code{edge_prior = sbm_prior(dirichlet_alpha = ...)} instead.
+Default: \code{1}.}
+
+\item{lambda}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}} Double. Use
+\code{edge_prior = sbm_prior(lambda = ...)} instead.
+Default: \code{1}.}
 
 \item{interaction_scale, burnin, save, threshold_alpha, threshold_beta}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
 Deprecated arguments as of \strong{bgms 0.1.6.0}.

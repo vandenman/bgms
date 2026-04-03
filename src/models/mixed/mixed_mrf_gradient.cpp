@@ -575,41 +575,36 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient(
     // Part 3: Prior log-densities and gradient contributions
     // =========================================================================
 
-    // --- main_effects_discrete_ priors: Beta(alpha, beta) on sigmoid scale ---
+    // --- main_effects_discrete_ priors ---
     main_effects_discrete_offset = 0;
     for(size_t s = 0; s < p_; ++s) {
         if(is_ordinal_variable_(s)) {
             int C_s = num_categories_(s);
             for(int c = 0; c < C_s; ++c) {
                 double val = temp_main_discrete(s, c);
-                logp += val * main_alpha_ -
-                        std::log1p(MY_EXP(val)) * (main_alpha_ + main_beta_);
-                double p = 1.0 / (1.0 + MY_EXP(-val));
-                grad(main_effects_discrete_offset + c) += main_alpha_ - (main_alpha_ + main_beta_) * p;
+                logp += threshold_prior_logp(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
+                grad(main_effects_discrete_offset + c) += threshold_prior_grad(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
             }
             main_effects_discrete_offset += C_s;
         } else {
             for(int k = 0; k < 2; ++k) {
                 double val = temp_main_discrete(s, k);
-                logp += val * main_alpha_ -
-                        std::log1p(MY_EXP(val)) * (main_alpha_ + main_beta_);
-                double p = 1.0 / (1.0 + MY_EXP(-val));
-                grad(main_effects_discrete_offset + k) += main_alpha_ - (main_alpha_ + main_beta_) * p;
+                logp += threshold_prior_logp(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
+                grad(main_effects_discrete_offset + k) += threshold_prior_grad(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
             }
             main_effects_discrete_offset += 2;
         }
     }
 
-    // --- pairwise_effects_discrete_ priors: Cauchy(0, pairwise_scale_) ---
+    // --- pairwise_effects_discrete_ priors ---
     const double disc_scale = pairwise_scale_;
-    const double disc_scale_sq = disc_scale * disc_scale;
     for(size_t i = 0; i < p_ - 1; ++i) {
         for(size_t j = i + 1; j < p_; ++j) {
             if(edge_indicators_(i, j) == 0) continue;
             int loc = disc_index_cache_(i, j);
             double val = temp_pairwise_discrete(i, j);
-            logp += R::dcauchy(val, 0.0, disc_scale, true);
-            grad(loc) -= 2.0 * val / (val * val + disc_scale_sq);
+            logp += interaction_prior_logp(interaction_prior_type_, val, disc_scale);
+            grad(loc) += interaction_prior_grad(interaction_prior_type_, val, disc_scale);
         }
     }
 
@@ -620,14 +615,14 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient(
         grad(main_effects_continuous_grad_offset_ + j) -= val;  // -val from -val^2/2
     }
 
-    // --- pairwise_effects_cross_ priors: Cauchy(0, pairwise_scale_) ---
+    // --- pairwise_effects_cross_ priors ---
     for(size_t i = 0; i < p_; ++i) {
         for(size_t j = 0; j < q_; ++j) {
             if(edge_indicators_(i, p_ + j) == 0) continue;
             int loc = cross_index_cache_(i, j);
             double val = temp_pairwise_cross(i, j);
-            logp += R::dcauchy(val, 0.0, pairwise_scale_, true);
-            grad(loc) -= 2.0 * val / (val * val + pairwise_scale_ * pairwise_scale_);
+            logp += interaction_prior_logp(interaction_prior_type_, val, pairwise_scale_);
+            grad(loc) += interaction_prior_grad(interaction_prior_type_, val, pairwise_scale_);
         }
     }
 
@@ -665,16 +660,14 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient(
         Omega_bar(j, j) -= 1.0;
         logp -= temp_precision(j, j);  // Gamma(1,1) log-density
     }
-    // Cauchy(0, scale) on off-diagonal Ω_{ij} (upper triangle only)
+    // Interaction prior on off-diagonal Ω_{ij} (upper triangle only)
     // Only add to Omega_bar(i,j), not (j,i): the symmetrization
     // Ω̄ + Ω̄ᵀ in Phase 4 handles the lower triangle automatically.
-    const double cont_scale_sq = pairwise_scale_ * pairwise_scale_;
     for(size_t i = 0; i < q_ - 1; ++i) {
         for(size_t j = i + 1; j < q_; ++j) {
             double val = temp_precision(i, j);
-            logp += R::dcauchy(val, 0.0, pairwise_scale_, true);
-            double cauchy_grad = -2.0 * val / (val * val + cont_scale_sq);
-            Omega_bar(i, j) += cauchy_grad;
+            logp += interaction_prior_logp(interaction_prior_type_, val, pairwise_scale_);
+            Omega_bar(i, j) += interaction_prior_grad(interaction_prior_type_, val, pairwise_scale_);
         }
     }
 
@@ -1099,39 +1092,34 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient_full(
     // Part 3: Priors
     // =========================================================================
 
-    // Main effects priors: Beta(alpha, beta) on sigmoid scale
+    // Main effects priors
     main_effects_discrete_offset = 0;
     for(size_t s = 0; s < p_; ++s) {
         if(is_ordinal_variable_(s)) {
             int C_s = num_categories_(s);
             for(int c = 0; c < C_s; ++c) {
                 double val = temp_main_discrete(s, c);
-                logp += val * main_alpha_ -
-                        std::log1p(MY_EXP(val)) * (main_alpha_ + main_beta_);
-                double p = 1.0 / (1.0 + MY_EXP(-val));
-                grad(main_effects_discrete_offset + c) += main_alpha_ - (main_alpha_ + main_beta_) * p;
+                logp += threshold_prior_logp(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
+                grad(main_effects_discrete_offset + c) += threshold_prior_grad(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
             }
             main_effects_discrete_offset += C_s;
         } else {
             for(int k = 0; k < 2; ++k) {
                 double val = temp_main_discrete(s, k);
-                logp += val * main_alpha_ -
-                        std::log1p(MY_EXP(val)) * (main_alpha_ + main_beta_);
-                double p = 1.0 / (1.0 + MY_EXP(-val));
-                grad(main_effects_discrete_offset + k) += main_alpha_ - (main_alpha_ + main_beta_) * p;
+                logp += threshold_prior_logp(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
+                grad(main_effects_discrete_offset + k) += threshold_prior_grad(threshold_prior_type_, val, main_alpha_, main_beta_, threshold_scale_);
             }
             main_effects_discrete_offset += 2;
         }
     }
 
-    // Kxx priors: Cauchy(0, pairwise_scale_)
+    // Kxx priors
     const double disc_scale = pairwise_scale_;
-    const double disc_scale_sq = disc_scale * disc_scale;
     for(size_t i = 0; i < p_ - 1; ++i) {
         for(size_t j = i + 1; j < p_; ++j) {
             double val = temp_pairwise_discrete(i, j);
-            logp += R::dcauchy(val, 0.0, disc_scale, true);
-            grad(kxx_idx(i, j)) -= 2.0 * val / (val * val + disc_scale_sq);
+            logp += interaction_prior_logp(interaction_prior_type_, val, disc_scale);
+            grad(kxx_idx(i, j)) += interaction_prior_grad(interaction_prior_type_, val, disc_scale);
         }
     }
 
@@ -1142,12 +1130,12 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient_full(
         grad(mean_offset + j) -= val;
     }
 
-    // Kxy priors: Cauchy(0, pairwise_scale_)
+    // Kxy priors
     for(size_t i = 0; i < p_; ++i) {
         for(size_t j = 0; j < q_; ++j) {
             double val = temp_pairwise_cross(i, j);
-            logp += R::dcauchy(val, 0.0, pairwise_scale_, true);
-            grad(kxy_idx(i, j)) -= 2.0 * val / (val * val + pairwise_scale_ * pairwise_scale_);
+            logp += interaction_prior_logp(interaction_prior_type_, val, pairwise_scale_);
+            grad(kxy_idx(i, j)) += interaction_prior_grad(interaction_prior_type_, val, pairwise_scale_);
         }
     }
 
@@ -1171,14 +1159,12 @@ std::pair<double, arma::vec> MixedMRFModel::logp_and_gradient_full(
         Omega_bar(j, j) -= 1.0;
         logp -= temp_precision(j, j);
     }
-    // Cauchy on off-diagonal
-    const double cont_scale_sq = pairwise_scale_ * pairwise_scale_;
+    // Interaction prior on off-diagonal precision
     for(size_t i = 0; i < q_ - 1; ++i) {
         for(size_t j = i + 1; j < q_; ++j) {
             double val = temp_precision(i, j);
-            logp += R::dcauchy(val, 0.0, pairwise_scale_, true);
-            double cauchy_grad = -2.0 * val / (val * val + cont_scale_sq);
-            Omega_bar(i, j) += cauchy_grad;
+            logp += interaction_prior_logp(interaction_prior_type_, val, pairwise_scale_);
+            Omega_bar(i, j) += interaction_prior_grad(interaction_prior_type_, val, pairwise_scale_);
         }
     }
 

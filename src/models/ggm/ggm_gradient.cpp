@@ -12,13 +12,15 @@ void GGMGradientEngine::rebuild(
     const GraphConstraintStructure& structure,
     size_t n,
     const arma::mat& suf_stat,
-    double pairwise_scale)
+    double pairwise_scale,
+    InteractionPriorType interaction_prior_type)
 {
     structure_ = &structure;
     n_ = n;
     p_ = structure.p;
     suf_stat_ = &suf_stat;
     pairwise_scale_ = pairwise_scale;
+    interaction_prior_type_ = interaction_prior_type;
 }
 
 // =====================================================================
@@ -246,7 +248,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
     const arma::mat& K = fm.K;
     const arma::mat& S = *suf_stat_;
     double n = static_cast<double>(n_);
-    double scale2 = pairwise_scale_ * pairwise_scale_;
+
 
     // Check for degenerate Phi (extreme theta pushed by leapfrog).
     double min_diag = Phi.diag().min();
@@ -268,7 +270,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
     double log_slab = 0.0;
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
-            log_slab += R::dcauchy(K(i, q), 0.0, pairwise_scale_, 1);
+            log_slab += interaction_prior_logp(interaction_prior_type_, K(i, q), pairwise_scale_);
         }
     }
 
@@ -295,7 +297,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient(
     for (size_t q = 1; q < p_; ++q) {
         for (size_t i : structure_->columns[q].included_indices) {
             double kij = K(i, q);
-            double d = -2.0 * kij / (scale2 + kij * kij);
+            double d = interaction_prior_grad(interaction_prior_type_, kij, pairwise_scale_);
             Phi_bar.col(q).head(i + 1) += d * Phi.col(i).head(i + 1);
             Phi_bar.col(i).head(i + 1) += d * Phi.col(q).head(i + 1);
         }
@@ -473,7 +475,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
     arma::mat P = arma::trimatu(Phi) * S;
 
     double n = static_cast<double>(n_);
-    double scale2 = pairwise_scale_ * pairwise_scale_;
+
 
     // --- Log-posterior value ---
 
@@ -491,7 +493,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
             double kij = arma::dot(
                 Phi.col(i).head(i + 1),
                 Phi.col(q).head(i + 1));
-            log_slab += R::dcauchy(kij, 0.0, pairwise_scale_, 1);
+            log_slab += interaction_prior_logp(interaction_prior_type_, kij, pairwise_scale_);
         }
     }
 
@@ -535,7 +537,7 @@ std::pair<double, arma::vec> GGMGradientEngine::logp_and_gradient_full(
             double kij = arma::dot(
                 Phi.col(i).head(i + 1),
                 Phi.col(q).head(i + 1));
-            double d = -2.0 * kij / (scale2 + kij * kij);
+            double d = interaction_prior_grad(interaction_prior_type_, kij, pairwise_scale_);
             P.col(q).head(i + 1) += d * Phi.col(i).head(i + 1);
             P.col(i).head(i + 1) += d * Phi.col(q).head(i + 1);
         }

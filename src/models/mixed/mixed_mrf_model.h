@@ -8,6 +8,7 @@
 #include "math/cholesky_helpers.h"
 #include "math/cholupdate.h"
 #include "rng/rng_utils.h"
+#include "priors/interaction_prior.h"
 
 /**
  * MixedMRFModel - Mixed Markov Random Field Model
@@ -74,7 +75,10 @@ public:
         double main_alpha,
         double main_beta,
         double pairwise_scale,
-        int seed
+        int seed,
+        InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy,
+        ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime,
+        double threshold_scale = 1.0
     );
 
     /** Copy constructor for cloning (required for parallel chains). */
@@ -350,6 +354,9 @@ private:
     double main_alpha_;                 ///< Beta prior alpha for main effects
     double main_beta_;                  ///< Beta prior beta for main effects
     double pairwise_scale_;             ///< Cauchy scale for interaction priors
+    InteractionPriorType interaction_prior_type_;  ///< Prior type for pairwise interactions
+    ThresholdPriorType threshold_prior_type_;      ///< Prior type for main effects / thresholds
+    double threshold_scale_;            ///< Scale for Normal threshold prior (unused for BetaPrime)
 
     // =========================================================================
     // Proposal SDs (Robbins-Monro adapted)

@@ -10,6 +10,7 @@
 #include "bgmCompare/bgmCompare_output.h"
 #include "mcmc/samplers/metropolis_adaptation.h"
 #include "utils/common_helpers.h"
+#include "priors/interaction_prior.h"
 
 using namespace RcppParallel;
 
@@ -127,6 +128,9 @@ struct GibbsCompareChainRunner : public Worker {
   const UpdateMethod update_method;
   const int hmc_num_leapfrogs;
   ProgressManager& pm;
+  const InteractionPriorType interaction_prior_type;
+  const ThresholdPriorType threshold_prior_type;
+  const double threshold_scale;
   // output
   std::vector<bgmCompareChainResult>& results;
 
@@ -167,6 +171,9 @@ struct GibbsCompareChainRunner : public Worker {
     const UpdateMethod update_method,
     const int hmc_num_leapfrogs,
     ProgressManager& pm,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale,
     std::vector<bgmCompareChainResult>& results
   ) :
     observations_master(observations_master),
@@ -205,6 +212,9 @@ struct GibbsCompareChainRunner : public Worker {
     update_method(update_method),
     hmc_num_leapfrogs(hmc_num_leapfrogs),
     pm(pm),
+    interaction_prior_type(interaction_prior_type),
+    threshold_prior_type(threshold_prior_type),
+    threshold_scale(threshold_scale),
     results(results)
   {}
 
@@ -263,7 +273,10 @@ struct GibbsCompareChainRunner : public Worker {
           rng,
           update_method,
           hmc_num_leapfrogs,
-          pm
+          pm,
+          interaction_prior_type,
+          threshold_prior_type,
+          threshold_scale
         );
 
         out.result = result;
@@ -383,7 +396,10 @@ Rcpp::List run_bgmCompare_parallel(
     int seed,
     const std::string& update_method,
     int hmc_num_leapfrogs,
-    int progress_type
+    int progress_type,
+    const std::string& interaction_prior_type_str = "cauchy",
+    const std::string& threshold_prior_type_str = "beta-prime",
+    double threshold_scale = 1.0
 ) {
   std::vector<bgmCompareChainResult> results(num_chains);
 
@@ -394,6 +410,8 @@ Rcpp::List run_bgmCompare_parallel(
   }
 
   UpdateMethod update_method_enum = update_method_from_string(update_method);
+  InteractionPriorType interaction_prior_type = interaction_prior_from_string(interaction_prior_type_str);
+  ThresholdPriorType threshold_prior_type = threshold_prior_from_string(threshold_prior_type_str);
 
   // only used to determine the total no. warmup iterations, a bit hacky
   WarmupSchedule warmup_schedule_temp(warmup, difference_selection, (update_method_enum != adaptive_metropolis));
@@ -410,7 +428,8 @@ Rcpp::List run_bgmCompare_parallel(
       pairwise_effect_indices, target_accept, nuts_max_depth, learn_mass_matrix,
       projection, group_membership, group_indices, interaction_index_matrix,
       inclusion_probability, chain_rngs, update_method_enum, hmc_num_leapfrogs,
-      pm, results
+      pm, interaction_prior_type, threshold_prior_type, threshold_scale,
+      results
   );
 
   {

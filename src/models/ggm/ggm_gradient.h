@@ -5,6 +5,7 @@
 #include <cmath>
 #include <utility>
 #include "models/ggm/graph_constraint_structure.h"
+#include "priors/interaction_prior.h"
 
 /**
  * One stored Givens rotation: rows (r1, r2), angle (c, s), column j.
@@ -77,7 +78,8 @@ public:
     void rebuild(const GraphConstraintStructure& structure,
                  size_t n,
                  const arma::mat& suf_stat,
-                 double pairwise_scale);
+                 double pairwise_scale,
+                 InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy);
 
     /**
      * Forward map: theta -> (Phi, K, log|det J|).
@@ -152,4 +154,5 @@ private:
     size_t p_ = 0;
     const arma::mat* suf_stat_ = nullptr;
     double pairwise_scale_ = 1.0;
+    InteractionPriorType interaction_prior_type_ = InteractionPriorType::Cauchy;
 };

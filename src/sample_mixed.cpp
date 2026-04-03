@@ -8,6 +8,7 @@
 #include <RcppArmadillo.h>
 
 #include "models/mixed/mixed_mrf_model.h"
+#include "priors/interaction_prior.h"
 #include "utils/progress_manager.h"
 #include "utils/common_helpers.h"
 #include "priors/edge_prior.h"
@@ -88,6 +89,24 @@ Rcpp::List sample_mixed_mrf(
     double pairwise_scale = Rcpp::as<double>(inputFromR["pairwise_scale"]);
     std::string pseudolikelihood = Rcpp::as<std::string>(inputFromR["pseudolikelihood"]);
 
+    // Extract prior types (with defaults for backward compatibility)
+    InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy;
+    if(inputFromR.containsElementNamed("interaction_prior")) {
+        interaction_prior_type = interaction_prior_from_string(
+            Rcpp::as<std::string>(inputFromR["interaction_prior"]));
+    }
+
+    ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime;
+    if(inputFromR.containsElementNamed("threshold_prior")) {
+        threshold_prior_type = threshold_prior_from_string(
+            Rcpp::as<std::string>(inputFromR["threshold_prior"]));
+    }
+
+    double threshold_scale = 1.0;
+    if(inputFromR.containsElementNamed("threshold_scale")) {
+        threshold_scale = Rcpp::as<double>(inputFromR["threshold_scale"]);
+    }
+
     // Create model
     MixedMRFModel model(
         discrete_obs, continuous_obs,
@@ -95,7 +114,8 @@ Rcpp::List sample_mixed_mrf(
         prior_inclusion_prob, initial_edge_indicators,
         edge_selection, pseudolikelihood,
         main_alpha, main_beta, pairwise_scale,
-        seed
+        seed,
+        interaction_prior_type, threshold_prior_type, threshold_scale
     );
 
     // Set up missing data imputation

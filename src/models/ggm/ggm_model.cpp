@@ -12,7 +12,7 @@
 void GGMModel::ensure_constraint_structure() {
     if (!constraint_dirty_) return;
     constraint_structure_.build(edge_indicators_);
-    gradient_engine_.rebuild(constraint_structure_, n_, suf_stat_, pairwise_scale_);
+    gradient_engine_.rebuild(constraint_structure_, n_, suf_stat_, pairwise_scale_, interaction_prior_type_);
     constraint_dirty_ = false;
     theta_valid_ = false;
 }
@@ -681,8 +681,8 @@ void GGMModel::update_edge_parameter(size_t i, size_t j, int iteration) {
 
     double ln_alpha = log_density_impl_edge(i, j);
 
-    ln_alpha += R::dcauchy(precision_proposal_(i, j), 0.0, pairwise_scale_, true);
-    ln_alpha -= R::dcauchy(precision_matrix_(i, j), 0.0, pairwise_scale_, true);
+    ln_alpha += interaction_prior_logp(interaction_prior_type_, precision_proposal_(i, j), pairwise_scale_);
+    ln_alpha -= interaction_prior_logp(interaction_prior_type_, precision_matrix_(i, j), pairwise_scale_);
 
     // Gamma(1,1) prior on changed diagonal K_jj
     ln_alpha += R::dgamma(precision_proposal_(j, j), 1.0, 1.0, true);
@@ -838,7 +838,7 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         ln_alpha += MY_LOG(1.0 - inclusion_probability_(i, j)) - MY_LOG(inclusion_probability_(i, j));
 
         ln_alpha += R::dnorm(precision_matrix_(i, j) / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
-        ln_alpha -= R::dcauchy(precision_matrix_(i, j), 0.0, pairwise_scale_, true);
+        ln_alpha -= interaction_prior_logp(interaction_prior_type_, precision_matrix_(i, j), pairwise_scale_);
 
         // Gamma(1,1) prior on changed diagonal K_jj
         ln_alpha += R::dgamma(precision_proposal_(j, j), 1.0, 1.0, true);
@@ -893,7 +893,7 @@ void GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         ln_alpha += MY_LOG(inclusion_probability_(i, j)) - MY_LOG(1.0 - inclusion_probability_(i, j));
 
         // Prior change: add slab (Cauchy prior)
-        ln_alpha += R::dcauchy(omega_prop_ij, 0.0, pairwise_scale_, true);
+        ln_alpha += interaction_prior_logp(interaction_prior_type_, omega_prop_ij, pairwise_scale_);
 
         // Gamma(1,1) prior on changed diagonal K_jj
         ln_alpha += R::dgamma(precision_proposal_(j, j), 1.0, 1.0, true);
@@ -998,8 +998,8 @@ void GGMModel::tune_proposal_sd(int iteration, const WarmupSchedule& schedule) {
             precision_proposal_(j, j) = omega_prop_qq;
 
             double ln_alpha = log_density_impl_edge(i, j);
-            ln_alpha += R::dcauchy(precision_proposal_(i, j), 0.0, pairwise_scale_, true);
-            ln_alpha -= R::dcauchy(precision_matrix_(i, j), 0.0, pairwise_scale_, true);
+            ln_alpha += interaction_prior_logp(interaction_prior_type_, precision_proposal_(i, j), pairwise_scale_);
+            ln_alpha -= interaction_prior_logp(interaction_prior_type_, precision_matrix_(i, j), pairwise_scale_);
 
             // Gamma(1,1) prior on changed diagonal K_jj
             ln_alpha += R::dgamma(precision_proposal_(j, j), 1.0, 1.0, true);
@@ -1198,7 +1198,8 @@ GGMModel createGGMModelFromR(
     const arma::imat& initial_edge_indicators,
     const bool edge_selection,
     const double pairwise_scale,
-    const bool na_impute
+    const bool na_impute,
+    InteractionPriorType interaction_prior_type
 ) {
 
     if (inputFromR.containsElementNamed("n") && inputFromR.containsElementNamed("suf_stat")) {
@@ -1210,7 +1211,8 @@ GGMModel createGGMModelFromR(
             prior_inclusion_prob,
             initial_edge_indicators,
             edge_selection,
-            pairwise_scale
+            pairwise_scale,
+            interaction_prior_type
         );
     } else if (inputFromR.containsElementNamed("X")) {
         arma::mat X = Rcpp::as<arma::mat>(inputFromR["X"]);
@@ -1220,7 +1222,8 @@ GGMModel createGGMModelFromR(
             initial_edge_indicators,
             edge_selection,
             pairwise_scale,
-            na_impute
+            na_impute,
+            interaction_prior_type
         );
     } else {
         throw std::invalid_argument("Input list must contain either 'X' or both 'n' and 'suf_stat'.");

@@ -14,6 +14,7 @@
 #include <string>
 #include "utils/progress_manager.h"
 #include "utils/common_helpers.h"
+#include "priors/interaction_prior.h"
 
 
 
@@ -257,7 +258,10 @@ void update_main_effects_metropolis_bgmcompare (
     const int iteration,
     MetropolisAdaptationController& metropolis_adapt,
     SafeRNG& rng,
-    arma::mat& proposal_sd_main
+    arma::mat& proposal_sd_main,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
   const int num_vars = observations.n_cols;
   arma::umat index_mask_main = arma::zeros<arma::umat>(proposal_sd_main.n_rows,
@@ -280,7 +284,8 @@ void update_main_effects_metropolis_bgmcompare (
         blume_capel_stats, num_groups, inclusion_indicator,
         is_ordinal_variable, baseline_category,
         main_alpha, main_beta, difference_scale,
-        variable, category, par, h
+        variable, category, par, h,
+        interaction_prior_type, threshold_prior_type, threshold_scale
       );
     };
 
@@ -389,7 +394,8 @@ void update_pairwise_effects_metropolis_bgmcompare (
     const int iteration,
     MetropolisAdaptationController& metropolis_adapt,
     SafeRNG& rng,
-    arma::mat& proposal_sd_pair
+    arma::mat& proposal_sd_pair,
+    const InteractionPriorType interaction_prior_type
 ) {
   int num_variables = observations.n_cols;
   int num_pairs = num_variables * (num_variables - 1) / 2;
@@ -439,7 +445,8 @@ void update_pairwise_effects_metropolis_bgmcompare (
         pairwise_effect_indices, projection, observations, group_indices,
         num_categories, pairwise_stats, residual_matrices, num_groups,
         inclusion_indicator, is_ordinal_variable, baseline_category,
-        pairwise_scale, pairwise_scaling_factors, difference_scale, var1, var2, h, delta
+        pairwise_scale, pairwise_scaling_factors, difference_scale, var1, var2, h, delta,
+        interaction_prior_type
       );
     };
 
@@ -551,7 +558,10 @@ double find_initial_stepsize_bgmcompare(
     const double main_alpha,
     const double main_beta,
     const double target_acceptance,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
   arma::vec theta = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator, main_effect_indices,
@@ -594,7 +604,8 @@ double find_initial_stepsize_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
-      grad_obs_act
+      grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -612,7 +623,8 @@ double find_initial_stepsize_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale,
-      main_index, pair_index, grad_obs_act
+      main_index, pair_index, grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -691,7 +703,10 @@ void update_hmc_bgmcompare(
     HMCAdaptationController& hmc_adapt,
     const bool learn_mass_matrix,
     const bool selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
   arma::vec current_state = vectorize_model_parameters_bgmcompare(
     main_effects, pairwise_effects, inclusion_indicator,
@@ -736,7 +751,8 @@ void update_hmc_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
-      grad_obs_act
+      grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -754,7 +770,8 @@ void update_hmc_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale,
-      main_index, pair_index, grad_obs_act
+      main_index, pair_index, grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -867,7 +884,10 @@ StepResult update_nuts_bgmcompare(
     HMCAdaptationController& hmc_adapt,
     const bool learn_mass_matrix,
     const bool selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
   // Pre-convert observations to double once (avoids repeated conversion in gradient evaluations)
   const arma::mat obs_double = arma::conv_to<arma::mat>::from(observations);
@@ -912,7 +932,8 @@ StepResult update_nuts_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale, main_index, pair_index,
-      grad_obs_act
+      grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -930,7 +951,8 @@ StepResult update_nuts_bgmcompare(
       pairwise_stats, num_groups, inclusion_indicator,
       is_ordinal_variable, baseline_category, main_alpha, main_beta,
       pairwise_scale, pairwise_scaling_factors, difference_scale,
-      main_index, pair_index, grad_obs_act
+      main_index, pair_index, grad_obs_act,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   };
 
@@ -1050,6 +1072,9 @@ void tune_proposal_sd_bgmcompare(
     int iteration,
     SafeRNG& rng,
     const WarmupSchedule& sched,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale,
     double target_accept = 0.44,
     double rm_decay = 0.75)
 {
@@ -1085,7 +1110,8 @@ void tune_proposal_sd_bgmcompare(
               num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
               baseline_category, main_alpha, main_beta, difference_scale,
-              var, c, -1, h
+              var, c, -1, h,
+              interaction_prior_type, threshold_prior_type, threshold_scale
             );
           };
 
@@ -1113,7 +1139,8 @@ void tune_proposal_sd_bgmcompare(
               num_categories, counts_per_category, blume_capel_stats,
               num_groups, inclusion_indicator, is_ordinal_variable,
               baseline_category, main_alpha, main_beta, difference_scale,
-              var, -1, par, h
+              var, -1, par, h,
+              interaction_prior_type, threshold_prior_type, threshold_scale
             );
           };
 
@@ -1172,7 +1199,8 @@ void tune_proposal_sd_bgmcompare(
             projection, observations, group_indices,
             num_categories, pairwise_stats, residual_matrices, num_groups,
             inclusion_indicator, is_ordinal_variable, baseline_category,
-            pairwise_scale, pairwise_scaling_factors, difference_scale, v1, v2, h, delta
+            pairwise_scale, pairwise_scaling_factors, difference_scale, v1, v2, h, delta,
+            interaction_prior_type
           );
         };
 
@@ -1275,7 +1303,8 @@ void update_indicator_differences_metropolis_bgmcompare (
     const std::vector<arma::imat>& blume_capel_stats,
     const std::vector<arma::mat>& pairwise_stats,
     const bool main_difference_selection,
-    SafeRNG& rng
+    SafeRNG& rng,
+    const InteractionPriorType interaction_prior_type
 ) {
   const int num_variables = observations.n_cols;
 
@@ -1328,8 +1357,8 @@ void update_indicator_differences_metropolis_bgmcompare (
       if(proposed_ind == 1) {
         // Propose to set difference to non-zero
         for(int h = 1; h < num_groups; h++) {
-          log_accept += R::dcauchy(
-            proposed_main_effects(row, h), 0.0, difference_scale, true
+          log_accept += interaction_prior_logp(
+            interaction_prior_type, proposed_main_effects(row, h), difference_scale
           );
           log_accept -= R::dnorm(
             proposed_main_effects(row, h), current_main_effects(row, h),
@@ -1339,8 +1368,8 @@ void update_indicator_differences_metropolis_bgmcompare (
       } else {
         // Propose to set difference to zero
         for(int h = 1; h < num_groups; h++) {
-          log_accept -= R::dcauchy(
-            current_main_effects(row, h), 0.0, difference_scale, true
+          log_accept -= interaction_prior_logp(
+            interaction_prior_type, current_main_effects(row, h), difference_scale
           );
           log_accept += R::dnorm(
             current_main_effects(row, h), proposed_main_effects(row, h),
@@ -1406,8 +1435,8 @@ void update_indicator_differences_metropolis_bgmcompare (
     if(proposed_ind == 1) {
       // Propose to set difference to non-zero
       for(int h = 1; h < num_groups; h++) {
-        log_accept += R::dcauchy(
-          proposed_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
+        log_accept += interaction_prior_logp(
+          interaction_prior_type, proposed_pairwise_effects(int_index, h), scaled_difference_scale
         );
         log_accept -= R::dnorm(
           proposed_pairwise_effects(int_index, h),
@@ -1419,8 +1448,8 @@ void update_indicator_differences_metropolis_bgmcompare (
     } else {
       // Propose to set difference to zero
       for(int h = 1; h < num_groups; h++) {
-        log_accept -= R::dcauchy(
-          current_pairwise_effects(int_index, h), 0.0, scaled_difference_scale, true
+        log_accept -= interaction_prior_logp(
+          interaction_prior_type, current_pairwise_effects(int_index, h), scaled_difference_scale
         );
         log_accept += R::dnorm(
           current_pairwise_effects(int_index, h),
@@ -1542,7 +1571,10 @@ void gibbs_update_step_bgmcompare (
     arma::mat& proposal_sd_main,
     arma::mat& proposal_sd_pair,
     const arma::imat& index,
-    const bool main_difference_selection
+    const bool main_difference_selection,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
 
   // Step 0: Initialise random graph structure when edge_selection = TRUE
@@ -1561,7 +1593,8 @@ void gibbs_update_step_bgmcompare (
         num_groups, group_indices, num_categories, inclusion_indicator,
         is_ordinal_variable, baseline_category, proposal_sd_main,
         difference_scale, pairwise_scaling_factors, proposal_sd_pair, counts_per_category,
-        blume_capel_stats, pairwise_stats, main_difference_selection, rng
+        blume_capel_stats, pairwise_stats, main_difference_selection, rng,
+        interaction_prior_type
     );
   }
 
@@ -1573,7 +1606,8 @@ void gibbs_update_step_bgmcompare (
         num_categories, observations, num_groups, group_indices,
         counts_per_category, blume_capel_stats, is_ordinal_variable,
         baseline_category, difference_scale, main_alpha, main_beta, iteration,
-        metropolis_adapt_main, rng, proposal_sd_main
+        metropolis_adapt_main, rng, proposal_sd_main,
+        interaction_prior_type, threshold_prior_type, threshold_scale
     );
 
     update_pairwise_effects_metropolis_bgmcompare (
@@ -1582,7 +1616,8 @@ void gibbs_update_step_bgmcompare (
         num_categories, observations, num_groups, group_indices,
         pairwise_stats, is_ordinal_variable, baseline_category,
         pairwise_scale, pairwise_scaling_factors, difference_scale, iteration, metropolis_adapt_pair, rng,
-        proposal_sd_pair
+        proposal_sd_pair,
+        interaction_prior_type
     );
   } else if (update_method == hamiltonian_mc) {
     update_hmc_bgmcompare(
@@ -1592,7 +1627,8 @@ void gibbs_update_step_bgmcompare (
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha,
       main_beta, hmc_nuts_leapfrogs, iteration, hmc_adapt, learn_mass_matrix,
-      schedule.selection_enabled(iteration), rng
+      schedule.selection_enabled(iteration), rng,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   } else if (update_method == nuts) {
     StepResult result = update_nuts_bgmcompare(
@@ -1602,7 +1638,8 @@ void gibbs_update_step_bgmcompare (
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha,
       main_beta, nuts_max_depth, iteration, hmc_adapt, learn_mass_matrix,
-      schedule.selection_enabled(iteration), rng
+      schedule.selection_enabled(iteration), rng,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
 
     if (iteration >= schedule.total_warmup) {
@@ -1622,7 +1659,8 @@ void gibbs_update_step_bgmcompare (
     inclusion_indicator, projection, num_categories, observations, num_groups,
     group_indices, counts_per_category, blume_capel_stats,
     pairwise_stats, is_ordinal_variable, baseline_category, pairwise_scale,
-    pairwise_scaling_factors, difference_scale, main_alpha, main_beta, iteration, rng, schedule
+    pairwise_scaling_factors, difference_scale, main_alpha, main_beta, iteration, rng, schedule,
+    interaction_prior_type, threshold_prior_type, threshold_scale
   );
 }
 
@@ -1729,7 +1767,10 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     SafeRNG& rng,
     const UpdateMethod update_method,
     const int hmc_num_leapfrogs,
-    ProgressManager& pm
+    ProgressManager& pm,
+    const InteractionPriorType interaction_prior_type,
+    const ThresholdPriorType threshold_prior_type,
+    const double threshold_scale
 ) {
   // --- Setup: dimensions and storage structures
   const int num_variables = observations.n_cols;
@@ -1775,7 +1816,8 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
       observations, num_groups, group_indices, counts_per_category,
       blume_capel_stats, pairwise_stats, is_ordinal_variable,
       baseline_category, pairwise_scale, pairwise_scaling_factors, difference_scale, main_alpha, main_beta,
-      target_accept, rng
+      target_accept, rng,
+      interaction_prior_type, threshold_prior_type, threshold_scale
     );
   }
 
@@ -1835,7 +1877,8 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
         main_effect_indices, projection, num_groups, group_indices,
         difference_scale, rng, inclusion_probability, hmc_num_leapfrogs,
         update_method, proposal_sd_main, proposal_sd_pair, index,
-        main_difference_selection
+        main_difference_selection,
+        interaction_prior_type, threshold_prior_type, threshold_scale
     );
 
     // --- Update difference probabilities under the prior (if difference selection is active)

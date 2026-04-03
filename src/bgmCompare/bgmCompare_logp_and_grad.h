@@ -14,6 +14,7 @@
  */
 
 #include <RcppArmadillo.h>
+#include "priors/interaction_prior.h"
 
 
 /**
@@ -137,7 +138,10 @@ arma::vec gradient(
     const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
-    const arma::vec& grad_obs
+    const arma::vec& grad_obs,
+    const InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy,
+    const ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime,
+    const double threshold_scale = 1.0
 );
 
 /**
@@ -172,7 +176,10 @@ std::pair<double, arma::vec> logp_and_gradient(
     const double difference_scale,
     const arma::imat& main_index,
     const arma::imat& pair_index,
-    const arma::vec& grad_obs
+    const arma::vec& grad_obs,
+    const InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy,
+    const ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime,
+    const double threshold_scale = 1.0
 );
 
 /**
@@ -208,7 +215,10 @@ double log_pseudoposterior_main_component(
     int variable,
     int category,
     int par,
-    int h
+    int h,
+    const InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy,
+    const ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime,
+    const double threshold_scale = 1.0
 );
 
 /**
@@ -245,7 +255,8 @@ double log_pseudoposterior_pair_component(
     int variable1,
     int variable2,
     int h,
-    double delta
+    double delta,
+    const InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy
 );
 
 

@@ -206,11 +206,8 @@ bgmCompare = function(
   difference_scale = 1,
   difference_prior = c("Bernoulli", "Beta-Bernoulli"),
   difference_probability = 0.5,
-  beta_bernoulli_alpha = 1,
-  beta_bernoulli_beta = 1,
-  pairwise_scale = 1,
-  main_alpha = 0.5,
-  main_beta = 0.5,
+  interaction_prior = cauchy_prior(scale = 1),
+  threshold_prior = beta_prime_prior(alpha = 0.5, beta = 0.5),
   iter = 1e3,
   warmup = 1e3,
   na_action = c("listwise", "impute"),
@@ -225,6 +222,13 @@ bgmCompare = function(
   seed = NULL,
   standardize = FALSE,
   verbose = getOption("bgms.verbose", TRUE),
+  # Deprecated prior arguments
+  pairwise_scale,
+  main_alpha,
+  main_beta,
+  beta_bernoulli_alpha,
+  beta_bernoulli_beta,
+  # Deprecated arguments (v0.1.6.0)
   main_difference_model,
   reference_category,
   main_difference_scale,
@@ -312,18 +316,41 @@ bgmCompare = function(
   }
 
   if(hasArg(interaction_scale)) {
-    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(interaction_scale =)", "bgmCompare(pairwise_scale =)")
-    if(!hasArg(pairwise_scale)) pairwise_scale = interaction_scale
+    lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(interaction_scale =)",
+                              "bgmCompare(interaction_prior =)")
+    if(!hasArg(pairwise_scale) &&
+       identical(interaction_prior, cauchy_prior(scale = 1))) {
+      interaction_prior = cauchy_prior(scale = interaction_scale)
+    }
+  }
+
+  if(hasArg(pairwise_scale)) {
+    lifecycle::deprecate_warn("0.3.0", "bgmCompare(pairwise_scale =)",
+                              "bgmCompare(interaction_prior =)")
+    if(identical(interaction_prior, cauchy_prior(scale = 1))) {
+      interaction_prior = cauchy_prior(scale = pairwise_scale)
+    }
   }
 
   if(hasArg(threshold_alpha) || hasArg(threshold_beta)) {
-    lifecycle::deprecate_warn(
-      "0.1.6.0",
+    lifecycle::deprecate_warn("0.1.6.0",
       "bgmCompare(threshold_alpha =, threshold_beta =)",
-      "bgmCompare(main_alpha =, main_beta =)" # = double-check if these are still part of bgmCompare
-    )
-    if(!hasArg(main_alpha)) main_alpha = threshold_alpha
-    if(!hasArg(main_beta)) main_beta = threshold_beta
+      "bgmCompare(threshold_prior =)")
+    if(identical(threshold_prior, beta_prime_prior(0.5, 0.5))) {
+      ta = if(hasArg(threshold_alpha)) threshold_alpha else 0.5
+      tb = if(hasArg(threshold_beta)) threshold_beta else 0.5
+      threshold_prior = beta_prime_prior(alpha = ta, beta = tb)
+    }
+  }
+
+  if(hasArg(main_alpha) || hasArg(main_beta)) {
+    lifecycle::deprecate_warn("0.3.0", "bgmCompare(main_alpha =)",
+                              "bgmCompare(threshold_prior =)")
+    if(identical(threshold_prior, beta_prime_prior(0.5, 0.5))) {
+      ma = if(hasArg(main_alpha)) main_alpha else 0.5
+      mb = if(hasArg(main_beta)) main_beta else 0.5
+      threshold_prior = beta_prime_prior(alpha = ma, beta = mb)
+    }
   }
 
   if(hasArg(burnin)) {
@@ -335,6 +362,13 @@ bgmCompare = function(
     lifecycle::deprecate_warn("0.1.6.0", "bgmCompare(save =)")
   }
 
+  # --- Unpack prior objects to flat parameters ---------------------------------
+  ip = unpack_interaction_prior(interaction_prior)
+  tp = unpack_threshold_prior(threshold_prior)
+
+  bba = if(hasArg(beta_bernoulli_alpha)) beta_bernoulli_alpha else 1
+  bbb = if(hasArg(beta_bernoulli_beta)) beta_bernoulli_beta else 1
+
   # --- Build spec, sample, build output ----------------------------------------
   spec = bgm_spec(
     x = x,
@@ -344,17 +378,20 @@ bgmCompare = function(
     y = if(hasArg(y)) y else NULL,
     group_indicator = if(hasArg(group_indicator)) group_indicator else NULL,
     na_action = na_action,
-    pairwise_scale = pairwise_scale,
-    main_alpha = main_alpha,
-    main_beta = main_beta,
+    interaction_prior_type = ip$interaction_prior_type,
+    pairwise_scale = ip$pairwise_scale,
+    threshold_prior_type = tp$threshold_prior_type,
+    main_alpha = tp$main_alpha,
+    main_beta = tp$main_beta,
+    threshold_scale = tp$threshold_scale,
     standardize = standardize,
     difference_selection = difference_selection,
     main_difference_selection = main_difference_selection,
     difference_prior = difference_prior,
     difference_scale = difference_scale,
     difference_probability = difference_probability,
-    beta_bernoulli_alpha = beta_bernoulli_alpha,
-    beta_bernoulli_beta = beta_bernoulli_beta,
+    beta_bernoulli_alpha = bba,
+    beta_bernoulli_beta = bbb,
     update_method = update_method,
     target_accept = if(hasArg(target_accept)) target_accept else NULL,
     iter = iter,

@@ -8,6 +8,7 @@
 #include <RcppArmadillo.h>
 #include "utils/common_helpers.h"
 #include "bgmCompare/bgmCompare_output.h"
+#include "priors/interaction_prior.h"
 #include <string>
 
 struct SafeRNG;
@@ -98,5 +99,8 @@ bgmCompareOutput run_gibbs_sampler_bgmCompare(
     SafeRNG& rng,
     const UpdateMethod update_method,
     const int hmc_num_leapfrogs,
-    ProgressManager& pm
+    ProgressManager& pm,
+    const InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy,
+    const ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime,
+    const double threshold_scale = 1.0
 );
