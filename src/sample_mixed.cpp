@@ -91,15 +91,15 @@ Rcpp::List sample_mixed_mrf(
 
     // Extract prior types (with defaults for backward compatibility)
     InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy;
-    if(inputFromR.containsElementNamed("interaction_prior")) {
+    if(inputFromR.containsElementNamed("interaction_prior_type")) {
         interaction_prior_type = interaction_prior_from_string(
-            Rcpp::as<std::string>(inputFromR["interaction_prior"]));
+            Rcpp::as<std::string>(inputFromR["interaction_prior_type"]));
     }
 
     ThresholdPriorType threshold_prior_type = ThresholdPriorType::BetaPrime;
-    if(inputFromR.containsElementNamed("threshold_prior")) {
+    if(inputFromR.containsElementNamed("threshold_prior_type")) {
         threshold_prior_type = threshold_prior_from_string(
-            Rcpp::as<std::string>(inputFromR["threshold_prior"]));
+            Rcpp::as<std::string>(inputFromR["threshold_prior_type"]));
     }
 
     double threshold_scale = 1.0;
