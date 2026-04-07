@@ -97,6 +97,22 @@
 #'   \code{"Bernoulli"} or \code{"Beta-Bernoulli"}. Default: \code{"Bernoulli"}.
 #' @param difference_probability Numeric. Prior inclusion probability for
 #'   differences (Bernoulli prior). Default: \code{0.5}.
+#' @param interaction_prior A prior specification object for baseline pairwise
+#'   interaction parameters, created by one of the prior constructor functions:
+#'   \itemize{
+#'     \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior (default).
+#'     \item \code{\link{normal_prior}()}: Normal(0, scale) prior.
+#'   }
+#'   When supplied, overrides \code{pairwise_scale}.
+#'   Default: \code{cauchy_prior(scale = 1)}.
+#' @param threshold_prior A prior specification object for threshold (main
+#'   effect) parameters, created by one of the prior constructor functions:
+#'   \itemize{
+#'     \item \code{\link{beta_prime_prior}()}: Beta-prime prior (default).
+#'     \item \code{\link{normal_threshold_prior}()}: Normal(0, scale) prior.
+#'   }
+#'   When supplied, overrides \code{main_alpha} and \code{main_beta}.
+#'   Default: \code{beta_prime_prior(alpha = 0.5, beta = 0.5)}.
 #' @param beta_bernoulli_alpha,beta_bernoulli_beta Doubles. Shape parameters
 #'   of the Beta prior for inclusion probabilities in the Beta–Bernoulli
 #'   model. Defaults: \code{1}.

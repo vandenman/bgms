@@ -2,12 +2,16 @@
 //
 // Exposes logp_and_gradient, forward_map, project_position,
 // project_momentum, and constrained leapfrog to R for validation.
+// Also exposes sample_ggm_prior() for sampling precision matrices
+// from the GGM prior using NUTS.
 
 #include <RcppArmadillo.h>
 #include "models/ggm/graph_constraint_structure.h"
 #include "models/ggm/ggm_gradient.h"
 #include "models/ggm/ggm_model.h"
 #include "mcmc/algorithms/leapfrog.h"
+#include "mcmc/algorithms/nuts.h"
+#include "rng/rng_utils.h"
 
 // [[Rcpp::export]]
 Rcpp::List ggm_test_logp_and_gradient(
@@ -312,5 +316,197 @@ Rcpp::List ggm_test_leapfrog_constrained_checked(
         Rcpp::Named("x") = Rcpp::wrap(x),
         Rcpp::Named("r") = Rcpp::wrap(r),
         Rcpp::Named("non_reversible_count") = non_reversible_count
+    );
+}
+
+
+// -----------------------------------------------------------------------------
+// sample_ggm_prior: Sample precision matrices from the GGM prior using NUTS
+// -----------------------------------------------------------------------------
+// Uses the Cholesky parameterization with NUTS. By setting n=0 and S=0,
+// the likelihood vanishes and the sampler targets the prior:
+//   K_ij | graph ~ Cauchy(0, scale) or Normal(0, scale)  (included edges)
+//   K_ij = 0                                             (excluded edges)
+//   K_ii ~ Gamma(1, 1)                                   (diagonal)
+//
+// edge_indicators: p x p integer matrix with 1 = edge included, 0 = excluded.
+//   Defaults to all-ones (full graph). For edge selection SBC, pass the
+//   graph drawn from the edge prior so K is sampled conditional on that graph.
+//
+// The prior is the product of the element-wise priors plus the
+// Jacobian from theta -> K induced by the Cholesky parameterization.
+// -----------------------------------------------------------------------------
+
+// [[Rcpp::export]]
+Rcpp::List sample_ggm_prior(
+    int p,
+    int n_samples,
+    int n_warmup = 1000,
+    double pairwise_scale = 2.5,
+    const std::string& interaction_prior_type = "cauchy",
+    double step_size = 0.1,
+    int max_depth = 10,
+    int seed = 1,
+    bool verbose = true,
+    Rcpp::Nullable<Rcpp::IntegerMatrix> edge_indicators_nullable = R_NilValue)
+{
+    // Build edge indicators (default: full graph, no constraints)
+    arma::imat edge_indicators;
+    if(edge_indicators_nullable.isNotNull()) {
+        edge_indicators = Rcpp::as<arma::imat>(
+            Rcpp::IntegerMatrix(edge_indicators_nullable.get()));
+    } else {
+        edge_indicators.ones(p, p);
+    }
+
+    InteractionPriorType prior_type = interaction_prior_from_string(
+        interaction_prior_type);
+
+    // Create model with n=0, S=0 so likelihood is flat (prior-only).
+    // edge_selection=false ensures the graph stays fixed throughout:
+    // no update_edge_indicators() calls, required for RATTLE correctness.
+    arma::mat suf_stat(p, p, arma::fill::zeros);
+    arma::mat inc_prob(p, p, arma::fill::value(0.5));
+    GGMModel model(0, suf_stat, inc_prob, edge_indicators,
+                   false, pairwise_scale, prior_type);
+
+    // Build constraint structure for K extraction (both paths use full offsets)
+    GraphConstraintStructure cs;
+    cs.build(edge_indicators);
+
+    SafeRNG rng(seed);
+
+    // --- Dispatch on has_constraints() (mirrors NUTSSampler::do_gradient_step) ---
+    //
+    // Constrained (sparse graph): RATTLE path — full-dim x in R^{p(p+1)/2},
+    //   logp_and_gradient_full, project_position + project_momentum.
+    //   Graph is fixed (edge_selection=false), satisfying the RATTLE
+    //   requirement that the constraint manifold does not change during sampling.
+    //
+    // Unconstrained (full graph): standard NUTS — active theta, logp_and_gradient,
+    //   no projection. For a full graph active_dim = full_dim so K extraction
+    //   via cs.full_theta_offsets is correct in both cases.
+
+    bool use_rattle = (cs.active_dim < cs.full_dim);
+
+    arma::vec theta;
+    arma::vec inv_mass;
+    Memoizer::JointFn joint;
+    std::unique_ptr<ProjectPositionFn> proj_pos_ptr;
+    std::unique_ptr<ProjectMomentumFn> proj_mom_ptr;
+
+    if(use_rattle) {
+        // Constrained RATTLE path (mirrors do_constrained_step)
+        theta = model.get_full_position();
+        inv_mass = arma::vec(theta.n_elem, arma::fill::ones);
+        joint = [&model](const arma::vec& x) -> std::pair<double, arma::vec> {
+            return model.logp_and_gradient_full(x);
+        };
+        proj_pos_ptr = std::make_unique<ProjectPositionFn>(
+            [&model, &inv_mass](arma::vec& x) {
+                model.project_position(x, inv_mass);
+            });
+        proj_mom_ptr = std::make_unique<ProjectMomentumFn>(
+            [&model, &inv_mass](arma::vec& r, const arma::vec& x) {
+                model.project_momentum(r, x, inv_mass);
+            });
+    } else {
+        // Unconstrained path (mirrors do_unconstrained_step)
+        theta = model.get_vectorized_parameters();
+        inv_mass = arma::vec(theta.n_elem, arma::fill::ones);
+        joint = [&model](const arma::vec& x) -> std::pair<double, arma::vec> {
+            return model.logp_and_gradient(x);
+        };
+        // No projection pointers (nullptr signals unconstrained to nuts_step)
+    }
+
+    // Storage for samples
+    int n_edges = p * (p - 1) / 2;
+    arma::mat K_offdiag_samples(n_samples, n_edges);
+    arma::mat K_diag_samples(n_samples, p);
+
+    // --- Helper: extract K from current theta and store row s ---
+    auto store_K = [&](int s) {
+        arma::mat Phi(p, p, arma::fill::zeros);
+        for(size_t q = 0; q < static_cast<size_t>(p); ++q) {
+            size_t offset = cs.full_theta_offsets[q];
+            for(size_t i = 0; i < q; ++i) {
+                Phi(i, q) = theta(offset + i);
+            }
+            Phi(q, q) = std::exp(theta(offset + q));
+        }
+        arma::mat K = Phi.t() * Phi;
+
+        // Zero excluded entries: RATTLE keeps K_{iq}=0 via projection but
+        // Phi^T Phi accumulates O(eps^2) drift; explicit zeroing makes the
+        // constraint exact in the output.
+        for(size_t q = 1; q < static_cast<size_t>(p); ++q) {
+            for(size_t i : cs.columns[q].excluded_indices) {
+                K(i, q) = 0.0;
+                K(q, i) = 0.0;
+            }
+        }
+
+        int idx = 0;
+        for(int i = 0; i < p - 1; ++i)
+            for(int j = i + 1; j < p; ++j)
+                K_offdiag_samples(s, idx++) = K(i, j);
+        for(int i = 0; i < p; ++i)
+            K_diag_samples(s, i) = K(i, i);
+    };
+
+    // --- Warmup phase ---
+    if(verbose) Rcpp::Rcout << "Warming up (" << n_warmup << " iterations)...\n";
+    double current_step_size = step_size;
+    for(int iter = 0; iter < n_warmup; ++iter) {
+        if(use_rattle) model.reset_projection_cache();
+        StepResult result = nuts_step(
+            theta, current_step_size, joint, inv_mass, rng,
+            max_depth, proj_pos_ptr.get(), proj_mom_ptr.get(), true, 0.5
+        );
+        theta = result.state;
+
+        // Simple dual-averaging-free step-size adaptation
+        if(iter < n_warmup / 2) {
+            if(result.accept_prob > 0.9)       current_step_size *= 1.1;
+            else if(result.accept_prob < 0.6)  current_step_size *= 0.9;
+        }
+    }
+
+    // --- Sampling phase ---
+    if(verbose) Rcpp::Rcout << "Sampling (" << n_samples << " draws)...\n";
+    for(int s = 0; s < n_samples; ++s) {
+        if(use_rattle) model.reset_projection_cache();
+        StepResult result = nuts_step(
+            theta, current_step_size, joint, inv_mass, rng,
+            max_depth, proj_pos_ptr.get(), proj_mom_ptr.get(), true, 0.5
+        );
+        theta = result.state;
+        store_K(s);
+    }
+
+    // Build column names
+    Rcpp::CharacterVector offdiag_names(n_edges);
+    int idx = 0;
+    for(int i = 0; i < p - 1; ++i) {
+        for(int j = i + 1; j < p; ++j) {
+            offdiag_names[idx++] = "K_" + std::to_string(i + 1) + "_" +
+                                   std::to_string(j + 1);
+        }
+    }
+
+    Rcpp::CharacterVector diag_names(p);
+    for(int i = 0; i < p; ++i) {
+        diag_names[i] = "K_" + std::to_string(i + 1) + "_" +
+                        std::to_string(i + 1);
+    }
+
+    return Rcpp::List::create(
+        Rcpp::Named("K_offdiag") = K_offdiag_samples,
+        Rcpp::Named("K_diag") = K_diag_samples,
+        Rcpp::Named("offdiag_names") = offdiag_names,
+        Rcpp::Named("diag_names") = diag_names,
+        Rcpp::Named("step_size") = current_step_size,
+        Rcpp::Named("edge_indicators") = Rcpp::wrap(edge_indicators)
     );
 }

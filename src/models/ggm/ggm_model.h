@@ -45,7 +45,7 @@ public:
             const double pairwise_scale,
             const bool na_impute = false,
             InteractionPriorType interaction_prior_type = InteractionPriorType::Cauchy
-    ) : n_(observations.n_rows),
+    ) : n_(observations.n_rows - 1),  // centered data has n-1 effective df
         p_(observations.n_cols),
         dim_((p_ * (p_ + 1)) / 2),
         suf_stat_(observations.t() * observations),
