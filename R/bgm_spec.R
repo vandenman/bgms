@@ -341,7 +341,7 @@ bgm_spec = function(x,
     display_progress = display_progress,
     is_continuous = is_continuous,
     edge_selection = if(model_type == "compare") FALSE else edge_selection,
-    verbose = verbose
+    verbose = verbose,
     progress_callback = progress_callback
   )
 
