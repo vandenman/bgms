@@ -208,7 +208,7 @@ validate_sampler = function(update_method,
     chains = chains,
     cores = cores,
     seed = seed,
-    progress_type = progress_type
+    progress_type = progress_type,
     progress_callback = progress_callback
   )
 }
