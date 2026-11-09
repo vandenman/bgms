@@ -475,6 +475,10 @@ print.bgms_parameter_prior = function(x, ...) {
   switch(x$family,
     "cauchy" = cat(sprintf("Parameter prior: Cauchy(0, %.4g)\n", hp$scale)),
     "normal" = cat(sprintf("Parameter prior: Normal(0, %.4g)\n", hp$scale)),
+    "informed-normal" = cat(sprintf(
+      "Parameter prior: informed Normal on theta = -K/2 (%d variables)\n",
+      nrow(hp$mean)
+    )),
     "beta-prime" = cat(sprintf(
       "Parameter prior: Beta-prime(alpha = %.4g, beta = %.4g)\n",
       hp$alpha, hp$beta

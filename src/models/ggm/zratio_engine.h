@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RcppArmadillo.h>
+#include "informed_normalizer.h"
 #include <unordered_map>
 #include <vector>
 #include <array>
@@ -137,6 +138,8 @@ inline SurfaceFamily surface_family_from_list(const Rcpp::List& s) {
  */
 class ZRatioEngine {
 public:
+    InformedNormalizer informed;
+    explicit ZRatioEngine(const Rcpp::List& spec) : informed(spec), psi0_(1) {}
     /// Default oracle block-Gibbs schedule (sweeps and burn-in) for the
     /// mediating-block sampler. Single source of truth: the set_oracle_params
     /// default arguments, the member initializers, and the sampler call sites
@@ -346,7 +349,10 @@ public:
     /// surface sloped downward in size at the hull edge and the tail degenerated
     /// to freezing. Non-zero means a fit pathology on some density band.
     long n_slope_floor() const { return n_slope_floor_; }
-    const arma::vec& addc() const { return addc_; }
+    const arma::vec& addc() const {
+        if (informed.active) throw InformedNormalizerFailure("centered-only constants requested");
+        return addc_;
+    }
 
 private:
     /**
@@ -564,6 +570,7 @@ private:
  */
 inline std::shared_ptr<ZRatioEngine> zratio_engine_from_spec(
     const Rcpp::List& zs) {
+    if (zs.containsElementNamed("family") && Rcpp::as<std::string>(zs["family"]) == "informed-normal") return std::make_shared<ZRatioEngine>(zs);
     auto engine = std::make_shared<ZRatioEngine>(
         Rcpp::as<arma::vec>(zs["addc"]),
         Rcpp::as<arma::vec>(zs["tg"]),

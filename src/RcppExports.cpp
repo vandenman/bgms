@@ -241,6 +241,54 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// informed_normal_potentials_cpp
+Rcpp::List informed_normal_potentials_cpp(Rcpp::List spec, Rcpp::List graphs);
+RcppExport SEXP _bgms_informed_normal_potentials_cpp(SEXP specSEXP, SEXP graphsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type spec(specSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type graphs(graphsSEXP);
+    rcpp_result_gen = Rcpp::wrap(informed_normal_potentials_cpp(spec, graphs));
+    return rcpp_result_gen;
+END_RCPP
+}
+// informed_normal_density_cpp
+Rcpp::NumericVector informed_normal_density_cpp(arma::mat mean, arma::mat sd, double x, int i, int j);
+RcppExport SEXP _bgms_informed_normal_density_cpp(SEXP meanSEXP, SEXP sdSEXP, SEXP xSEXP, SEXP iSEXP, SEXP jSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type sd(sdSEXP);
+    Rcpp::traits::input_parameter< double >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type i(iSEXP);
+    Rcpp::traits::input_parameter< int >::type j(jSEXP);
+    rcpp_result_gen = Rcpp::wrap(informed_normal_density_cpp(mean, sd, x, i, j));
+    return rcpp_result_gen;
+END_RCPP
+}
+// informed_normal_reference_cpp
+arma::mat informed_normal_reference_cpp(const arma::imat& graph, const arma::mat& mean, const arma::mat& sd, double rate, double delta, int i, int j, int draws, int warmup, int chains, int seed);
+RcppExport SEXP _bgms_informed_normal_reference_cpp(SEXP graphSEXP, SEXP meanSEXP, SEXP sdSEXP, SEXP rateSEXP, SEXP deltaSEXP, SEXP iSEXP, SEXP jSEXP, SEXP drawsSEXP, SEXP warmupSEXP, SEXP chainsSEXP, SEXP seedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::imat& >::type graph(graphSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type sd(sdSEXP);
+    Rcpp::traits::input_parameter< double >::type rate(rateSEXP);
+    Rcpp::traits::input_parameter< double >::type delta(deltaSEXP);
+    Rcpp::traits::input_parameter< int >::type i(iSEXP);
+    Rcpp::traits::input_parameter< int >::type j(jSEXP);
+    Rcpp::traits::input_parameter< int >::type draws(drawsSEXP);
+    Rcpp::traits::input_parameter< int >::type warmup(warmupSEXP);
+    Rcpp::traits::input_parameter< int >::type chains(chainsSEXP);
+    Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
+    rcpp_result_gen = Rcpp::wrap(informed_normal_reference_cpp(graph, mean, sd, rate, delta, i, j, draws, warmup, chains, seed));
+    return rcpp_result_gen;
+END_RCPP
+}
 // compute_ess_cpp
 Rcpp::NumericVector compute_ess_cpp(Rcpp::NumericVector array3d);
 RcppExport SEXP _bgms_compute_ess_cpp(SEXP array3dSEXP) {
@@ -999,6 +1047,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bgms_ggm_test_logp_and_gradient", (DL_FUNC) &_bgms_ggm_test_logp_and_gradient, 5},
     {"_bgms_ggm_test_forward_map", (DL_FUNC) &_bgms_ggm_test_forward_map, 2},
     {"_bgms_sample_ggm_prior", (DL_FUNC) &_bgms_sample_ggm_prior, 13},
+    {"_bgms_informed_normal_potentials_cpp", (DL_FUNC) &_bgms_informed_normal_potentials_cpp, 2},
+    {"_bgms_informed_normal_density_cpp", (DL_FUNC) &_bgms_informed_normal_density_cpp, 5},
+    {"_bgms_informed_normal_reference_cpp", (DL_FUNC) &_bgms_informed_normal_reference_cpp, 11},
     {"_bgms_compute_ess_cpp", (DL_FUNC) &_bgms_compute_ess_cpp, 1},
     {"_bgms_compute_rhat_cpp", (DL_FUNC) &_bgms_compute_rhat_cpp, 1},
     {"_bgms_compute_indicator_ess_cpp", (DL_FUNC) &_bgms_compute_indicator_ess_cpp, 1},

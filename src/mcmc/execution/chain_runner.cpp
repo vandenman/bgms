@@ -1,3 +1,4 @@
+#include "models/ggm/informed_normalizer.h"
 #include "mcmc/execution/chain_runner.h"
 
 #include <exception>
@@ -229,6 +230,10 @@ void MCMCChainRunner::operator()(std::size_t begin, std::size_t end) {
                 ? arma::vec()
                 : warm_inv_masses_[i];
             run_mcmc_chain(chain_result, model, edge_prior, config_, static_cast<int>(i), pm_, warm_eps, warm_metric);
+        } catch (const InformedNormalizerFailure& e) {
+            chain_result.error = true;
+            chain_result.fatal_normalizer = true;
+            chain_result.error_msg = e.what();
         } catch (std::exception& e) {
             chain_result.error = true;
             chain_result.error_msg = e.what();
@@ -346,6 +351,15 @@ Rcpp::List convert_results_to_list(const std::vector<ChainResult>& results) {
         Rcpp::List chain_list;
 
         chain_list["chain_id"] = chain.chain_id;
+        chain_list["fatal_normalizer"] = chain.fatal_normalizer;
+        if (chain.informed_normalizer) chain_list["informed_normalizer"] = Rcpp::List::create(
+            Rcpp::Named("method") = "smc",
+            Rcpp::Named("backend_version") = 1,
+            Rcpp::Named("seconds") = chain.informed_seconds,
+            Rcpp::Named("largest_particles") = chain.informed_particles,
+            Rcpp::Named("unique_graphs") = chain.informed_evaluations,
+            Rcpp::Named("cache_hits") = chain.informed_hits,
+            Rcpp::Named("largest_estimated_half_width") = chain.informed_half_width);
 
         if (chain.error) {
             chain_list["error"] = true;

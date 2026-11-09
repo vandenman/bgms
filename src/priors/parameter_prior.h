@@ -1,5 +1,7 @@
 #pragma once
 
+#include <RcppArmadillo.h>
+#include <stdexcept>
 #include <memory>
 #include <string>
 #include <cmath>
@@ -24,6 +26,9 @@ public:
 
     /** Gradient d/dx log p(x). */
     virtual double grad(double x) const = 0;
+
+    virtual double logp(double x, size_t i, size_t j) const { return logp(x); }
+    virtual double grad(double x, size_t i, size_t j) const { return grad(x); }
 
     /** Deep copy for parallel chains. */
     virtual std::unique_ptr<BaseParameterPrior> clone() const = 0;
@@ -85,6 +90,36 @@ private:
     double scale_;
 };
 
+
+/** Edge-indexed Gaussian factors on theta = -K/2. */
+class InformedNormalPrior final : public BaseParameterPrior {
+public:
+    arma::mat mean, sd;
+    InformedNormalPrior(arma::mat m, arma::mat s) : mean(std::move(m)), sd(std::move(s)) {
+        if (mean.n_rows != mean.n_cols || sd.n_rows != mean.n_rows || sd.n_cols != mean.n_cols)
+            throw std::invalid_argument("Informed prior matrix dimensions must match");
+        for (size_t j = 1; j < mean.n_cols; ++j) {
+            for (size_t i = 0; i < j; ++i) {
+                const double variance = 4.0 * sd(i,j) * sd(i,j);
+                const double precision = 1.0 / variance;
+                if (!(sd(i,j) > 0) || !(precision > 0) ||
+                    !std::isfinite(precision) || !std::isfinite(2.0 * mean(i,j)) ||
+                    !std::isfinite((2.0 * mean(i,j)) * precision))
+                    throw std::invalid_argument("Informed Gaussian prior cannot be represented at double precision");
+            }
+        }
+    }
+    double logp(double) const override { throw std::logic_error("Informed prior requires edge indices"); }
+    double grad(double) const override { throw std::logic_error("Informed prior requires edge indices"); }
+    double logp(double x, size_t i, size_t j) const override {
+        double z = (x - mean(i,j)) / sd(i,j);
+        return -0.5 * std::log(2 * arma::datum::pi) - std::log(sd(i,j)) - 0.5*z*z;
+    }
+    double grad(double x, size_t i, size_t j) const override {
+        return -(x - mean(i,j)) / (sd(i,j)*sd(i,j));
+    }
+    std::unique_ptr<BaseParameterPrior> clone() const override { return std::make_unique<InformedNormalPrior>(*this); }
+};
 
 /**
  * BetaPrimePrior — logit-Beta(alpha, beta) prior.

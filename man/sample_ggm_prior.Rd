@@ -21,7 +21,8 @@ sample_ggm_prior(
   update_method = c("adaptive-metropolis", "gibbs"),
   edge_prior = NULL,
   apply_correction = TRUE,
-  zratio_diagnostics = TRUE
+  zratio_diagnostics = TRUE,
+  normalizer_control = NULL
 )
 }
 \arguments{
@@ -34,6 +35,9 @@ sample_ggm_prior(
 \item{interaction_prior}{A \code{bgms_parameter_prior} for the
 partial-association off-diagonals \eqn{K_{yy,ij} = -K_{ij}/2}. Use
 \code{\link{cauchy_prior}()} or \code{\link{normal_prior}()};
+\code{\link{informed_normal_prior}()} is also supported for conditional
+and hierarchical sampling, using the specified update_method and an
+explicit exponential diagonal rate.
 \code{\link{beta_prime_prior}()} is not supported here. Default:
 \code{normal_prior(scale = 1)}, matching \code{\link{bgm}()}.}
 
@@ -124,6 +128,9 @@ marginal without flipping individual decisions. This argument switches
 the gauge on and off; how precisely it audits is set by
 \code{options(bgms.zratio_gauge_sweeps)}, the same option the deployed
 path reads.}
+
+\item{normalizer_control}{Optional informed-normal SMC controls, as in
+\code{bgm()}; available only for informed hierarchical sampling.}
 }
 \value{
 A list with components

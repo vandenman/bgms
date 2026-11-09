@@ -44,7 +44,8 @@ bgm(
   save,
   threshold_alpha,
   threshold_beta,
-  standardize
+  standardize,
+  normalizer_control = NULL
 )
 }
 \arguments{
@@ -85,6 +86,8 @@ both windows scale with the warmup budget. Default: \code{2e3}.}
 interaction parameters, created by one of the prior constructor functions:
 \itemize{
 \item \code{\link{normal_prior}()}: Normal(0, scale) prior (default).
+\item \code{\link{informed_normal_prior}()}: Fixed edge-specific Gaussian
+means and SDs for pure GGMs, with an explicit exponential diagonal rate.
 \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior.
 \item \code{\link{beta_prime_prior}()}: Beta-prime prior.
 }
@@ -403,6 +406,13 @@ and share one prior scale, so the per-pair adjustment is gone:
 \code{standardize = FALSE} (the old default) warns and proceeds, while
 \code{standardize = TRUE} errors and points to setting the scale directly
 through \code{interaction_prior}.}
+
+\item{normalizer_control}{Optional named list for informed GGM graph selection.
+Controls the deterministic SMC normalizer: particles_initial (1024),
+particles_max (1048576), particles_multiplier (4), replicas (32),
+rejuvenation_sweeps (1), master_seed (1), log_z_tol (0.001), and
+nominal_confidence (0.99). Precision intervals are estimated; they do not
+certify approximation accuracy. Exhausted budgets stop the fit.}
 }
 \value{
 An S7 object of class \code{bgms} with posterior summaries, posterior mean

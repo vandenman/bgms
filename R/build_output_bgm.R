@@ -17,6 +17,11 @@ build_output_bgm = function(spec, raw) {
   p = spec$prior
   s = spec$sampler
 
+  informed_diagnostics = if(p$interaction_prior_type == "informed-normal") {
+    lapply(raw, `[[`, "informed_normalizer")
+  } else {
+    NULL
+  }
   is_continuous = v$is_continuous
   num_variables = d$num_variables
   data_columnnames = d$data_columnnames
@@ -26,7 +31,7 @@ build_output_bgm = function(spec, raw) {
   # Keep the raw chains for the Z-ratio trust gauge: it needs the untouched
   # indicator layout and the per-chain zratio block, both dropped by the
   # normalization below.
-  zratio_chains = if(isTRUE(p$zratio_active)) {
+  zratio_chains = if(isTRUE(p$zratio_active) && p$interaction_prior_type != "informed-normal") {
     raw
   } else {
     NULL
@@ -184,6 +189,7 @@ build_output_bgm = function(spec, raw) {
   pair_means = colMeans(pooled_pair)
 
   results = list()
+  results$normalizer_diagnostics = informed_diagnostics
 
   # --- Edge selection summaries (deferred) ------------------------------------
   has_sbm = FALSE

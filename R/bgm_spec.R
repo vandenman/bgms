@@ -451,6 +451,10 @@ bgm_spec = function(x,
     model_type = "mixed_mrf"
   }
 
+  if(interaction_prior_type == "informed-normal" && model_type != "ggm") {
+    stop("informed_normal_prior() requires a pure GGM.")
+  }
+
   # Auto-resolve delta = NULL to the dimension-adaptive default 0.5 * log(p),
   # where p is the dimension of the continuous precision matrix. For models
   # without a continuous block (omrf, compare) the tilt has no target, so
@@ -505,7 +509,7 @@ bgm_spec = function(x,
   if(precision_graph_prior == "hierarchical") {
     # Rejected exactly when the request is meaningful and unsupported; zratio_
     # active is what "meaningful" means, so a vacuous cell never reaches this.
-    if(zratio_active && !interaction_prior_type %in% c("normal", "cauchy")) {
+    if(zratio_active && !interaction_prior_type %in% c("normal", "cauchy", "informed-normal")) {
       stop(sprintf(
         paste0(
           "precision_graph_prior = \"hierarchical\" supports a normal or Cauchy ",

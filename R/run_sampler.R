@@ -37,6 +37,8 @@ run_sampler = function(spec) {
 
   # Check for chain-level errors
   chain_errors = vapply(raw, function(ch) isTRUE(ch$error), logical(1L))
+  fatal = vapply(raw, function(ch) isTRUE(ch$fatal_normalizer), logical(1L))
+  if(any(fatal)) stop(raw[[which(fatal)[1L]]]$error_msg)
   if(all(chain_errors)) {
     msgs = vapply(raw, function(ch) ch$error_msg %||% "unknown error", character(1L))
     stop("All chains failed. First error: ", msgs[1L])
@@ -81,7 +83,9 @@ run_sampler_ggm = function(spec) {
   # there either, so the fit pays for neither.
   correction = NULL
   zratio = NULL
-  if(isTRUE(p$zratio_active)) {
+  if(isTRUE(p$zratio_active) && p$interaction_prior_type == "informed-normal") {
+    zratio = informed_normal_spec(p)
+  } else if(isTRUE(p$zratio_active)) {
     zc = zratio_cell_constants(
       p$delta, p$pairwise_scale, p$scale_rate, p$scale_eta,
       scale_shape = p$scale_shape,
@@ -109,6 +113,8 @@ run_sampler_ggm = function(spec) {
       X = d$x,
       pairwise_scale = p$pairwise_scale,
       interaction_prior_type = p$interaction_prior_type,
+      interaction_mean = p$interaction_mean,
+      interaction_sd = p$interaction_sd,
       interaction_alpha = p$interaction_alpha,
       interaction_beta = p$interaction_beta,
       scale_prior_type = p$scale_prior_type,

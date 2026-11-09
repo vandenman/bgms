@@ -88,6 +88,7 @@ bgms_class = new_class("bgms",
     nuts_diag = new_property(class_any, default = NULL),
     am_diag = new_property(class_any, default = NULL),
     zratio_diag = new_property(class_any, default = NULL),
+    normalizer_diagnostics = new_property(class_any, default = NULL),
 
     # --- easybgm compatibility (deprecated) ---
     indicator = new_property(class_any, default = NULL),
@@ -131,6 +132,7 @@ s3_list_to_bgms = function(results) {
     nuts_diag = .subset2(results, "nuts_diag"),
     am_diag = .subset2(results, "am_diag"),
     zratio_diag = .subset2(results, "zratio_diag"),
+    normalizer_diagnostics = .subset2(results, "normalizer_diagnostics"),
     indicator = .subset2(results, "indicator"),
     interactions = .subset2(results, "interactions"),
     thresholds = .subset2(results, "thresholds"),

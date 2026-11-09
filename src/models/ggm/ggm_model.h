@@ -184,7 +184,7 @@ public:
     }
 
     /** Trust gauge available iff the hierarchical Z-ratio engine is attached. */
-    bool gauge_available() const override { return zratio_engine_ != nullptr; }
+    bool gauge_available() const override { return zratio_engine_ != nullptr && !zratio_engine_->informed.active; }
 
     void set_gauge_active(bool on, int n_draws, int cap) override {
         if (on) {

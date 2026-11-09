@@ -53,8 +53,10 @@ Rcpp::List sample_ggm(
     double ib = inputFromR.containsElementNamed("interaction_beta")
         ? Rcpp::as<double>(inputFromR["interaction_beta"]) : NA_REAL;
 
-    auto interaction_prior = create_parameter_prior(
-        ipt_str, pairwise_scale, ia, ib);
+    std::unique_ptr<BaseParameterPrior> interaction_prior;
+    if (ipt_str == "informed-normal")
+        interaction_prior = std::make_unique<InformedNormalPrior>(Rcpp::as<arma::mat>(inputFromR["interaction_mean"]), Rcpp::as<arma::mat>(inputFromR["interaction_sd"]));
+    else interaction_prior = create_parameter_prior(ipt_str, pairwise_scale, ia, ib);
 
     // Scale prior on precision diagonal
     std::string spt_str = inputFromR.containsElementNamed("scale_prior_type")

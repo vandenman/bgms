@@ -1,0 +1,208 @@
+Informed Gaussian GGM priors: implementation and measured validation
+8 November 2026
+
+Branch: feature/informed_priors
+Base and current HEAD: 511cc0d65c05a6bb9f2d4f3267b61b76e202fb56
+No feature commit was made. Changes are left staged for review.
+
+Implemented API and target
+--------------------------
+informed_normal_prior(mean, sd) supplies fixed symmetric interaction matrices.
+Named matrices are aligned on both axes to the fitted columns; unused diagonals
+are zero. Symmetry tolerance is 1e-12. Off-diagonal means must be finite and SDs
+finite and positive. Parameters describe Gaussian factors, not marginal moments
+after restricting K to be positive definite.
+
+Interaction theta = -K/2; precision mean m = -2*mean, precision SD tau = 2*sd,
+and precision diagonal rate beta = raw exponential rate/2. Exponential diagonal
+priors (including Gamma shape exactly one) and the existing nonnegative global
+determinant tilt are supported. An explicit raw rate is required. Mixed, ordinal,
+comparison, threshold and means-prior roles are rejected. Graph selection uses
+the hierarchical specification. Fixed-graph fits need no graph normalizer.
+
+The indexed densities, gradients, row Gibbs mean shifts and Gaussian birth/death
+proposals use these coordinates. AM and NUTS use the indexed interaction density
+and gradient. The RJ density conversion is counted once. The previous scalar
+Normal/Cauchy interfaces are preserved.
+
+Normalizer
+----------
+The full-graph backend integrates each Gaussian row analytically, uses systematic
+resampling and exact prior-Gibbs rejuvenation, and averages replica normalizers
+before taking logs. Stable row integration uses triangular solves and sums of
+squares. Disconnected graphs factor with the full-model delta unchanged. Empty
+graphs are exact; isolated edges use positive adaptive Gauss-Kronrod quadrature.
+Other components use SMC. One scalar potential per graph is frozen and cached.
+Ratios are differences of these potentials, hence are consistent around cycles.
+Caches are copied by value with chain clones. Recomputing the same graph with the
+same immutable inputs reproduces its potential; posterior RNGs are never used.
+
+Backend version 1 uses FNV-1a byte mixing of the graph and compiled prior/control
+parameters and separate pilot/confirmation/replica stream tags. The master seed
+is shared across chains. Cache identity is scoped to the owning immutable prior
+and numerical configuration. Values are never refined after being used.
+
+Default controls:
+ method=smc, master_seed=1, log_z_tol=0.001, nominal_confidence=0.99,
+ particles_initial=1024, particles_multiplier=4, particles_max=1048576,
+ replicas=32, rejuvenation_sweeps=1, resampling=systematic_every_prefix,
+ vertex_order=data_columns, failure=error.
+
+A pilot selects a deterministic particle-grid level. Fresh confirmation replicas
+must also pass. Confirmation intervals allocate nominal error over grid levels;
+Student-t intervals are formed on scaled arithmetic normalizers and transformed
+to log scale. These are estimated MC precision intervals, not rigorous coverage
+or universal accuracy guarantees. Exhaustion or numerical failure raises a typed
+fatal normalizer error; R stops the whole fit before dropping ordinary failed
+chains. The legacy centered gauge and centered diagnostics are bypassed. Centered
+engine calculations explicitly reject informed-family use.
+
+Fit diagnostics are in fit$normalizer_diagnostics; aligned matrices and resolved
+controls are retained in fit$.bgm_spec$prior. Prior-only results also retain their
+compiled prior. Diagnostics report backend version, unique graph evaluations,
+cache hits, maximum accepted particle budget, maximum estimated half-width and
+normalizer elapsed time. A zero SMC budget for an isolated edge means quadrature.
+
+Independent references and measured accuracy
+-------------------------------------------
+Reference code includes an R Q-form implementation and a separately coded C++
+prior-only full-row Gibbs implementation. Neither calls the production SMC row
+kernel. Batch means account for serial dependence; independent chains use
+separate starts. Inadequate reference precision is labeled inconclusive.
+
+1. Isolated edges: 90 R Gamma/Bessel quadrature comparisons covered delta in
+   {0,0.5,2}, beta pairs {(1,1),(0.5,2)}, m in {0,+/-0.25,+/-1}, and tau in
+   {0.1,0.5,1}. The 45 equal-rate cases additionally checked compiled production
+   quadrature. Maximum absolute log error was 2.4291e-13; median 3.5111e-15.
+   Endpoint exchange, sign invariance, stable row algebra and covariance were
+   checked. This includes |m/tau| up to 10.
+
+2. Complete p=3 graph space: interaction mean 0.1, SD 0.15, rate 2, delta 0.
+   Dimensionless precision parameters: a=-0.2, eta=0.3, z=-2/3 on every edge.
+   All eight graph potentials were evaluated. Independent full-row references
+   used four chains of 500,000 retained draws after 5,000 warmup sweeps, with a
+   nominal simultaneous 99% allocation across two isomorphism-class references.
+   Edge-to-path reference log ratio: 0.2371032, half-width 0.000454611.
+   Path-to-triangle reference: 0.2211861, half-width 0.000391855.
+   Across all twelve graph additions, worst absolute ratio discrepancy was
+   approximately 0.00065756 and median 0.000041763. Worst discrepancy plus
+   reference allowance was 0.00104941, below 0.003.
+   Induced graph-law TV was 0.00010026; including the conservative propagated
+   reference allowance gave 0.00094744, below 0.005. Printed production values
+   used for this summary were rounded at about 5e-8. The reproducible validation
+   runner recomputes full-precision potentials.
+
+3. Prior-only sampling: p=2, interaction mean 0.15, SD 0.2, rate 2, delta 0.5.
+   Four chains of 100,000 retained draws each, with 2,000 warmup, for Bernoulli
+   probabilities 0.1, 0.3, 0.5 and Beta-Bernoulli(2,3), whose edge marginal is 0.4.
+   Nominal simultaneous 99% batch-means allowances across these four cases:
+     target     estimate      absolute discrepancy + allowance
+      0.1       0.0999075     0.00143631
+      0.3       0.3000900     0.00148201
+      0.5       0.4999725     0.00072232
+      0.4       0.4002775     0.00203729
+   All pass the 0.01 PIP and (two-graph) 0.005 TV gates.
+   Additional p=3 100,000-draw checks produced PIPs:
+     Gibbs: 0.50007, 0.50003, 0.50008;
+     AM:    0.50079, 0.49893, 0.49827.
+   Those p=3 sampler summaries do not have separately estimated uncertainty.
+
+4. Known-mean posterior check: p=2, n=10, T=[[8,2],[2,12]], interaction mean
+   0.1, SD 0.2, rate 2, delta 0.5. Four Gibbs chains of 200,000 retained draws
+   after 2,000 warmup. Independent completed-square quadrature gave PIP
+   0.4637842125; sampling gave 0.46371625. Nominal 99% half-width 0.0004526691;
+   discrepancy plus allowance 0.0005206316. Both the 0.01 PIP and 0.005 TV
+   gates pass. Public fixed-graph Gibbs, AM and NUTS routes also passed smoke
+   checks; these smoke checks are not independent accuracy certification.
+
+5. Repeated seed and budget: p=3 complete graph from case 2.
+   Default seed 1 log potential approximately -0.6945812 (maximum graph-space
+   half-width 0.000920941). Independent seed 2 gave -0.6948645, half-width
+   0.0009514701. A fixed 262,144 particles per replica (4x the original accepted
+   maximum), seed 1, gave -0.6951180, half-width 0.0003838131. These agree within
+   reported uncertainty and with reference log potential approximately -0.6951969.
+
+Cost and practical limits
+-------------------------
+At default controls, the p=3 eight-graph bank took about 148 seconds. The p=3
+prior runs spent 152.1 seconds (Gibbs) and 149.4 seconds (AM) in normalization,
+using at most 65,536 particles per replica. They served 534,082 and 524,578 cache
+hits respectively, with seven nonempty graph evaluations. The seed-2 complete
+graph cost 59.1 seconds; the 4x fixed-budget graph cost 196.3 seconds. Concurrent
+validation work was running, so these are operational timings, not isolated
+microbenchmarks. This backend is expensive for many distinct connected graphs.
+
+Precision/runtime probes reached p=20, with paths and complete graphs. These used
+mean=0.001, SD=0.005, rate=2, delta=0.5*log(p), and a fixed 128 particles per
+replica, 32 replicas, otherwise default controls; OPENBLAS_NUM_THREADS=1.
+These are narrow, near-zero factors, and only estimated precision was assessed:
+ p   family       density   seconds   estimated log-Z half-width
+ 5   path          0.4       0.411    0.0000331781
+ 5   complete      1.0       0.618    0.000221574
+10   path          0.2       2.147    0.0000229478
+10   complete      1.0       3.342    0.0000447603
+20   path          0.1      11.859    0.0000163485
+20   complete      1.0      23.112    0.0000566814
+These probes do not certify accuracy at p>3 or justify a practical large-p default.
+
+Failures, scope of evidence, and remaining certification
+-------------------------------------------------------
+The first p=3 independent reference (20,000 draws per chain) had half-width
+0.00183184 and was inconclusive. Increasing the independent reference effort
+resolved it; the production criterion was not relaxed. A deliberate connected
+p=3 test with two particles, two replicas and tolerance 1e-12 fails explicitly
+with budget exhaustion. This failure is expected and retained in the tests.
+
+An S7 diagnostics assignment error found in the initial public-fit test was fixed
+by declaring and constructing the diagnostics property. All three public fixed
+sampler methods and the two-chain hierarchical public fit then passed.
+
+The complete held-out p=4 and p=5/10/20 accuracy banks, strong incompatible-cycle
+stress bank, broad posterior enumeration, general Gamma diagonals and hyperparameter
+learning are not certified/supported by these results. No universal claim of
+matching the old approximation's error on all graphs is made. The new frozen
+normalizer defines a coherent approximate posterior, not exact pseudo-marginal
+MCMC. Successful MC precision checks alone are not treated as certification.
+
+Reproduction
+------------
+Run from the project root with the renv library:
+ R CMD INSTALL .
+ Rscript -e 'testthat::test_dir("tests/testthat", package="bgms", load_package="installed")'
+ BGMS_RUN_SLOW_TESTS=true OPENBLAS_NUM_THREADS=1 Rscript -e 'testthat::test_dir("tests/testthat", filter="informed-normal", package="bgms", load_package="installed")'
+ OPENBLAS_NUM_THREADS=1 Rscript tests/validation/informed-normal-prior.R
+ OPENBLAS_NUM_THREADS=1 Rscript tests/validation/informed-normal-posterior.R
+ OPENBLAS_NUM_THREADS=1 Rscript tests/validation/informed-normal-graph-law.R
+
+No Python files were added, no --preclean was used, and renv.lock was not edited.
+
+Additional verification notes
+-----------------------------
+The fast suite completed with 7,975 passes and no failures (286 tests skipped by
+existing tier/dependency gates). Three transient metadata-read warnings arose
+because installation overlapped that run. A subsequent stable-installation run
+covering the changed informed tests, fit-object contracts, prior sensitivity and
+printing passed 911 assertions with zero warnings or failures (9 skips).
+New R numerical/constructor files passed lintr. Generated wrappers and Rd files
+were regenerated. Documentation generation reports existing unavailable qgraph
+links because that suggested package is not installed in this renv library.
+
+The p=20 complete-graph precision probe was repeated with one cached lookup:
+23.039 seconds elapsed, whole-R-process peak RSS 136,320 kB (Linux VmHWM).
+This includes R and package overhead; it is not the isolated backend footprint.
+
+Final review additionally allocates disconnected-graph precision and confidence
+budgets across components and sums component half-widths. This does not change
+the connected-graph numerical results above. A two-triangle disconnected-graph
+regression verifies the allocation and the unchanged global delta. Inputs whose
+compiled Gaussian variance/precision or natural mean cannot be represented as
+finite doubles fail explicitly before sampling; finite means are never clipped.
+
+The final informed test run passed 452 assertions, zero warnings/failures, with
+one slow-tier test skipped (its independent numerical calculations were run
+separately above). R CMD check on a clean built source snapshot, with tests run
+separately and manual/vignettes disabled, completed with zero errors/warnings
+and one usage NOTE about dgamma/qt. Explicit stats:: qualifications corrected that
+note. A subsequent codetools check found no undefined globals; it reported only
+six existing unused-local-variable notices in unrelated functions. Suggested
+packages coda, covr, qgraph and rmarkdown were unavailable during the check.

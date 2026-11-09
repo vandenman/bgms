@@ -54,9 +54,14 @@
 #' @param p Integer. Dimension of the precision matrix (\eqn{p \ge 2}).
 #' @param n_samples Integer. Number of post-warmup draws to keep.
 #' @param n_warmup Integer. NUTS warmup iterations. Default \code{2000}.
+#' @param normalizer_control Optional informed-normal SMC controls, as in
+#'   \code{bgm()}; available only for informed hierarchical sampling.
 #' @param interaction_prior A \code{bgms_parameter_prior} for the
 #'   partial-association off-diagonals \eqn{K_{yy,ij} = -K_{ij}/2}. Use
 #'   \code{\link{cauchy_prior}()} or \code{\link{normal_prior}()};
+#'   \code{\link{informed_normal_prior}()} is also supported for conditional
+#'   and hierarchical sampling, using the specified update_method and an
+#'   explicit exponential diagonal rate.
 #'   \code{\link{beta_prime_prior}()} is not supported here. Default:
 #'   \code{normal_prior(scale = 1)}, matching \code{\link{bgm}()}.
 #' @param precision_scale_prior A \code{bgms_scale_prior} for
@@ -214,7 +219,8 @@ sample_ggm_prior = function(
   update_method = c("adaptive-metropolis", "gibbs"),
   edge_prior = NULL,
   apply_correction = TRUE,
-  zratio_diagnostics = TRUE
+  zratio_diagnostics = TRUE,
+  normalizer_control = NULL
 ) {
   spec = match.arg(spec)
   update_method = match.arg(update_method)
@@ -282,7 +288,27 @@ sample_ggm_prior = function(
 
   edge_indicators = validate_ggm_prior_edge_indicators(edge_indicators, p)
 
-  if(spec == "conditional") {
+  informed = identical(ip$interaction_prior_type, "informed-normal")
+  if(!is.null(normalizer_control) && (!informed || spec != "hierarchical")) {
+    stop("normalizer_control requires informed hierarchical graph selection.")
+  }
+  informed_p = NULL
+  if(informed) {
+    prior_spec = list(
+      model_type = "ggm",
+      data = list(num_variables = p, data_columnnames = as.character(seq_len(p))),
+      prior = c(sp, list(
+        edge_selection = spec != "conditional",
+        precision_graph_prior = if(spec == "conditional") "hierarchical" else spec
+      ))
+    )
+    if(!is.null(rownames(interaction_prior$hyper.parameters$mean))) {
+      prior_spec$data$data_columnnames = rownames(interaction_prior$hyper.parameters$mean)
+    }
+    prior_spec = attach_informed_prior(prior_spec, interaction_prior, normalizer_control)
+    informed_p = c(prior_spec$prior, list(delta = delta))
+  }
+  if(spec == "conditional" && !informed) {
     return(sample_ggm_prior_cpp(
       p                        = as.integer(p),
       n_samples                = as.integer(n_samples),
@@ -305,13 +331,15 @@ sample_ggm_prior = function(
   # un-normalised joint prior; the hierarchical chain adds the per-edge
   # Z-ratio to the between-edge moves so the graph marginal is pi(Gamma).
   inputFromR = list(
-    n                      = 0L,
-    suf_stat               = matrix(0, p, p),
-    pairwise_scale         = ip$pairwise_scale,
+    n = 0L,
+    suf_stat = matrix(0, p, p),
+    pairwise_scale = ip$pairwise_scale,
     interaction_prior_type = ip$interaction_prior_type,
-    scale_prior_type       = sp$scale_prior_type,
-    scale_shape            = sp$scale_shape,
-    scale_rate             = sp$scale_rate
+    interaction_mean = informed_p$interaction_mean,
+    interaction_sd = informed_p$interaction_sd,
+    scale_prior_type = sp$scale_prior_type,
+    scale_shape = sp$scale_shape,
+    scale_rate = sp$scale_rate
   )
 
   if(is.null(ep)) {
@@ -322,7 +350,9 @@ sample_ggm_prior = function(
   }
   correction = NULL
   zratio = NULL
-  if(spec == "hierarchical") {
+  if(spec == "hierarchical" && informed) {
+    zratio = informed_normal_spec(informed_p)
+  } else if(spec == "hierarchical") {
     # Hierarchical spec p(K | Gamma) = rho_Gamma(K)/Z(Gamma): the per-edge
     # Z-ratio engine carries the normalizer into the between-edge moves,
     # and the hyperparameter updates are the clean conjugate draws (no
@@ -375,11 +405,11 @@ sample_ggm_prior = function(
   results = sample_ggm(
     inputFromR = inputFromR,
     prior_inclusion_prob = ep$inclusion_probability,
-    initial_edge_indicators = ggm_prior_ancestral_indicators(p, ep, seed),
+    initial_edge_indicators = if(spec == "conditional") edge_indicators %||% matrix(1L, p, p) else ggm_prior_ancestral_indicators(p, ep, seed),
     no_iter = as.integer(n_samples),
     no_warmup = as.integer(n_warmup),
     no_chains = 1L,
-    edge_selection = TRUE,
+    edge_selection = spec != "conditional",
     sampler_type = update_method,
     # The target bgm() resolves for this update method (validate_sampler()).
     target_acceptance = resolve_target_acceptance(update_method),
@@ -407,7 +437,13 @@ sample_ggm_prior = function(
   # triangle in (i <= j) order, p(p+1)/2 rows per iteration. Diagonals on
   # the indicator side are always 1 and discarded here.
   upper = results[[1L]]$samples # ((p*(p+1))/2) x n_samples
-  inds = results[[1L]]$indicator_samples # ((p*(p+1))/2) x n_samples
+  inds = results[[1L]]$indicator_samples
+  if(is.null(inds)) {
+    G = edge_indicators %||% matrix(1L, p, p)
+    entries = unlist(lapply(seq_len(p), function(i) G[i, i:p]))
+    inds = matrix(entries, length(entries), n_samples)
+  }
+  # # ((p*(p+1))/2) x n_samples
   n_edges = as.integer(p * (p - 1) / 2)
 
   K_offdiag = matrix(0, n_samples, n_edges)
@@ -451,7 +487,7 @@ sample_ggm_prior = function(
   if(!is.null(results[[1L]]$allocation_samples)) {
     out$allocations = t(results[[1L]]$allocation_samples)
   }
-  if(spec == "hierarchical" && isTRUE(zratio_diagnostics)) {
+  if(spec == "hierarchical" && isTRUE(zratio_diagnostics) && !informed) {
     harm_inputs = zratio_harm_inputs(
       list(colMeans(gamma_offdiag)), ep$edge_prior,
       a = ep$beta_bernoulli_alpha, b = ep$beta_bernoulli_beta
@@ -463,6 +499,10 @@ sample_ggm_prior = function(
     if(isTRUE(verbose) && isTRUE(out$zratio_diagnostics$flagged)) {
       cat("See vignette('diagnostics') for guidance.\n")
     }
+  }
+  if(informed) {
+    out$informed_prior = informed_p
+    out$normalizer_diagnostics = results[[1L]]$informed_normalizer
   }
   out
 }

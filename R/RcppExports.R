@@ -49,6 +49,18 @@ sample_ggm_prior_cpp <- function(p, n_samples, n_warmup = 1000L, pairwise_scale 
     .Call(`_bgms_sample_ggm_prior`, p, n_samples, n_warmup, pairwise_scale, interaction_prior_type, scale_prior_type, gamma_shape, gamma_rate, max_depth, seed, verbose, edge_indicators_nullable, delta)
 }
 
+informed_normal_potentials_cpp <- function(spec, graphs) {
+    .Call(`_bgms_informed_normal_potentials_cpp`, spec, graphs)
+}
+
+informed_normal_density_cpp <- function(mean, sd, x, i, j) {
+    .Call(`_bgms_informed_normal_density_cpp`, mean, sd, x, i, j)
+}
+
+informed_normal_reference_cpp <- function(graph, mean, sd, rate, delta, i, j, draws, warmup, chains, seed) {
+    .Call(`_bgms_informed_normal_reference_cpp`, graph, mean, sd, rate, delta, i, j, draws, warmup, chains, seed)
+}
+
 .compute_ess_cpp <- function(array3d) {
     .Call(`_bgms_compute_ess_cpp`, array3d)
 }

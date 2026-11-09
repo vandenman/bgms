@@ -55,6 +55,7 @@ double ZRatioEngine::slice_pivot_(double xi0, double q) const {
 }
 
 double ZRatioEngine::saddle_ratio(double s1, double s2) const {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     if (s1 <= 0 || s2 <= 0) return 1.0;
     double eh = s1 * s1 / (2.0 * s2), ur = s2 / s1, nf = 0, dg = 0;
     for (arma::uword k = 0; k < tg_.n_elem; ++k) {
@@ -67,6 +68,7 @@ double ZRatioEngine::saddle_ratio(double s1, double s2) const {
 
 ZRatioBlock ZRatioEngine::extract_block(const arma::imat& G, int i,
                                         int j) const {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     ZRatioBlock bl;
     extract_block_(G, i, j, /*need_adjacency=*/true, /*need_counts=*/true,
                    /*need_maxbd=*/true, bl);
@@ -549,6 +551,7 @@ double ZRatioEngine::surface_logr_(const arma::imat& G) {
 bool ZRatioEngine::gold_moments(const arma::imat& G, int i, int j,
                                 double& s1_out, double& s2_out,
                                 double& logr_out) {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     ZRatioBlock bl;
     extract_block_(G, i, j, /*need_adjacency=*/true, /*need_counts=*/false,
                    /*need_maxbd=*/false, bl);
@@ -628,6 +631,7 @@ bool ZRatioEngine::surface_moments(const arma::imat& G, int i, int j,
                                    double& s1_out, double& s2_out,
                                    double& logr_out,
                                    std::vector<SurfaceComp>& comps) {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     comps.clear();
     ZRatioBlock bl;
     extract_block_(G, i, j, /*need_adjacency=*/true, /*need_counts=*/false,
@@ -645,6 +649,11 @@ bool ZRatioEngine::surface_moments(const arma::imat& G, int i, int j,
 }
 
 double ZRatioEngine::log_zratio(const arma::imat& G, int i, int j) {
+    if (informed.active) {
+        arma::imat minus=G, plus=G;
+        minus(i,j)=minus(j,i)=0; plus(i,j)=plus(j,i)=1;
+        return informed.potential(minus)-informed.potential(plus);
+    }
     // Isolated-edge routing: past the top of the surface's validated shape
     // range the mediating correction is switched off and every edge gets
     // log(psi0), the exact ratio for an edge with no mediating structure. The
@@ -1070,6 +1079,7 @@ bool ZRatioEngine::block_oracle_moments(const arma::imat& a_blk,
                                         const arma::uvec& si,
                                         const arma::uvec& sj, double& s1_out,
                                         double& s2_out) {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     std::vector<arma::uvec> nbr;
     arma::mat k_blk, omega_blk;
     init_block_(a_blk, nbr, k_blk, omega_blk);
@@ -1111,6 +1121,7 @@ bool ZRatioEngine::block_reference_logR(const arma::imat& a_blk,
                                         const arma::uvec& si,
                                         const arma::uvec& sj, int n_draws,
                                         double& logR_out, double& mcse_out) {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     std::vector<arma::uvec> nbr;
     arma::mat k_blk, omega_blk;
     init_block_(a_blk, nbr, k_blk, omega_blk);
@@ -1181,6 +1192,7 @@ bool ZRatioEngine::block_reference_logR(const arma::imat& a_blk,
 }
 
 void ZRatioEngine::precompute_table(int ncn_max, int bre_max) {
+    if (informed.active) throw InformedNormalizerFailure("centered-only engine method invoked");
     double c1 = addc_[0], c2 = addc_[1], c3 = addc_[2], c4 = addc_[3],
            c5 = addc_[4], c6 = addc_[5];
     for (int ncn = 0; ncn <= ncn_max; ncn++) {

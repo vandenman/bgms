@@ -490,6 +490,10 @@ bgmCompare = function(
   }
 
   # --- Unpack prior objects to flat parameters ---------------------------------
+  if(identical(interaction_prior$family, "informed-normal") ||
+    identical(threshold_prior$family, "informed-normal")) {
+    stop("informed_normal_prior() is not supported by bgmCompare().")
+  }
   ip = unpack_interaction_prior(interaction_prior)
   tp = unpack_threshold_prior(threshold_prior)
   difference_family = match.arg(difference_family)

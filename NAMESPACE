@@ -91,6 +91,7 @@ export(extract_prior_inclusion_probabilities)
 export(extract_rhat)
 export(extract_sbm)
 export(gamma_prior)
+export(informed_normal_prior)
 export(mrfSampler)
 export(normal_prior)
 export(plot_edge_posterior)
@@ -105,28 +106,34 @@ export(verdicts)
 import(RcppParallel)
 importFrom(Rcpp,evalCpp)
 importFrom(Rdpack,reprompt)
-importFrom(S7,class_any)
-importFrom(S7,class_character)
-importFrom(S7,new_class)
-importFrom(S7,new_property)
-importFrom(S7,prop)
+importFrom(S7,
+  class_any,
+  class_character,
+  new_class,
+  new_property,
+  prop
+)
 importFrom(methods,hasArg)
-importFrom(stats,approxfun)
-importFrom(stats,dcauchy)
-importFrom(stats,dnorm)
-importFrom(stats,dpois)
-importFrom(stats,integrate)
-importFrom(stats,predict)
-importFrom(stats,rbeta)
-importFrom(stats,rexp)
-importFrom(stats,rgamma)
-importFrom(stats,rnorm)
-importFrom(stats,rpois)
-importFrom(stats,runif)
-importFrom(stats,sd)
-importFrom(stats,simulate)
-importFrom(stats,var)
-importFrom(utils,combn)
-importFrom(utils,head)
-importFrom(utils,packageVersion)
+importFrom(stats,
+  approxfun,
+  dcauchy,
+  dnorm,
+  dpois,
+  integrate,
+  predict,
+  rbeta,
+  rexp,
+  rgamma,
+  rnorm,
+  rpois,
+  runif,
+  sd,
+  simulate,
+  var
+)
+importFrom(utils,
+  combn,
+  head,
+  packageVersion
+)
 useDynLib(bgms, .registration=TRUE)

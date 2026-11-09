@@ -100,6 +100,11 @@ public:
     /// Z-ratio engine counters: n_hit, n_miss, n_pred, n_add, cache_size.
     arma::vec   zratio_counters;
     /// Whether Z-ratio engine diagnostics are stored.
+    bool fatal_normalizer = false;
+    bool informed_normalizer = false;
+    long informed_evaluations = 0, informed_hits = 0;
+    double informed_half_width = 0, informed_seconds = 0;
+    int informed_particles = 0;
     bool        has_zratio_diagnostics = false;
 
     /// In-chain trust gauge (hierarchical spec): D = fraction of edge moves

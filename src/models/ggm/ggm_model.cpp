@@ -8,6 +8,15 @@
 
 void GGMModel::collect_chain_diagnostics(ChainResult& chain_result) const {
     if (!zratio_engine_) return;
+    if (zratio_engine_->informed.active) {
+        chain_result.informed_normalizer = true;
+        chain_result.informed_evaluations = zratio_engine_->informed.evaluations;
+        chain_result.informed_hits = zratio_engine_->informed.hits;
+        chain_result.informed_seconds = zratio_engine_->informed.seconds;
+        chain_result.informed_particles = zratio_engine_->informed.largest_particles;
+        chain_result.informed_half_width = zratio_engine_->informed.largest_half_width;
+        return;
+    }
     const ZRatioEngine& engine = *zratio_engine_;
     chain_result.has_zratio_diagnostics = true;
     chain_result.zratio_addc = engine.addc();
@@ -311,8 +320,8 @@ double GGMModel::ggm_edge_move(size_t i, size_t j) {
     }
 
     // Interaction prior on K_yy_{ij} = -0.5 * Omega_{ij}
-    ln_alpha += interaction_prior_->logp(-0.5 * precision_proposal_(i, j));
-    ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j));
+    ln_alpha += interaction_prior_->logp(-0.5 * precision_proposal_(i, j), i, j);
+    ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j), i, j);
 
     // Gamma(shape, rate) prior on changed diagonal K_jj. The Roverato move
     // slaves K_jj = c_3 + phi_{q-1,q}^2, so K_jj moves with the off-diagonal
@@ -471,7 +480,7 @@ bool GGMModel::row_block_gibbs_eligible() {
     // gate eligibility.
     const bool normal = dynamic_cast<const NormalPrior*>(interaction_prior_.get()) != nullptr;
     const bool cauchy = dynamic_cast<const CauchyPrior*>(interaction_prior_.get()) != nullptr;
-    if (!normal && !cauchy) return false;
+    if (!normal && !cauchy && !dynamic_cast<const InformedNormalPrior*>(interaction_prior_.get())) return false;
     if (dynamic_cast<const GammaScalePrior*>(diagonal_prior_.get()) == nullptr) return false;
     return true;
 }
@@ -521,6 +530,7 @@ void GGMModel::update_row_block_gibbs(size_t i) {
     // Slab sigma (std on K_yy_ij = -K_ij/2), diagonal Gamma rate beta0, and
     // shape alpha are read from the (already eligibility-checked) priors.
     const auto* diag  = static_cast<const GammaScalePrior*>(diagonal_prior_.get());
+    const auto* informed = dynamic_cast<const InformedNormalPrior*>(interaction_prior_.get());
     const double sigma = slab_scale_();
     const double beta0 = diag->rate();
     const double alpha = diag->shape();
@@ -581,7 +591,7 @@ void GGMModel::update_row_block_gibbs(size_t i) {
         arma::mat M = (beta0 + s_ii) * C;
         for (size_t k = 0; k < q; ++k) {
             const double w_k = cauchy ? omega_(i, Ni[k]) : 1.0;
-            M(k, k) += inv_4sig2 / w_k;
+            M(k, k) += informed ? 1.0 / (4.0 * std::pow(informed->sd(i, Ni[k]), 2)) : inv_4sig2 / w_k;
         }
 
         arma::mat L_M;
@@ -595,7 +605,7 @@ void GGMModel::update_row_block_gibbs(size_t i) {
         // S_{N_i, i} vector.
         arma::vec& s_Ni_i = gibbs_s_Ni_i_;
         s_Ni_i.set_size(q);
-        for (size_t k = 0; k < q; ++k) s_Ni_i(k) = suf_stat_(Ni[k], i);
+        for (size_t k = 0; k < q; ++k) s_Ni_i(k) = suf_stat_(Ni[k], i) + (informed ? informed->mean(i, Ni[k]) / (2.0 * std::pow(informed->sd(i, Ni[k]), 2)) : 0.0);
 
         // Mean mu = -M^{-1} S_{N_i, i}. Two triangular solves: L y = -S, L^T mu = y.
         arma::vec y  = arma::solve(arma::trimatl(L_M), -s_Ni_i);
@@ -792,7 +802,7 @@ double GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
 
         ln_alpha += R::dnorm(precision_matrix_(i, j) / constants_[3], 0.0, proposal_sd, true) - MY_LOG(constants_[3]);
         // Slab in K_yy coords; proposal in K_ij coords. Jacobian |dK_yy/dK_ij| = 1/2.
-        ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j)) - MY_LOG(2.0);
+        ln_alpha -= interaction_prior_->logp(-0.5 * precision_matrix_(i, j), i, j) - MY_LOG(2.0);
 
         // Gamma(shape, rate) prior on changed diagonal K_jj. The Roverato move
         // slaves K_jj = c_3 + phi_{q-1,q}^2, so K_jj moves with the off-diagonal
@@ -862,7 +872,7 @@ double GGMModel::update_edge_indicator_parameter_pair(size_t i, size_t j) {
         }
 
         // Slab in K_yy coords; proposal in K_ij coords. Jacobian |dK_yy/dK_ij| = 1/2.
-        ln_alpha += interaction_prior_->logp(-0.5 * omega_prop_ij) - MY_LOG(2.0);
+        ln_alpha += interaction_prior_->logp(-0.5 * omega_prop_ij, i, j) - MY_LOG(2.0);
 
         // Gamma(shape, rate) prior on changed diagonal K_jj. The Roverato move
         // slaves K_jj = c_3 + phi_{q-1,q}^2, so K_jj moves with the off-diagonal
@@ -1006,7 +1016,9 @@ double GGMModel::update_edge_indicator_conjugate(size_t i, size_t j) {
     get_constants(i, j);
     const double c1 = constants_[2];
     const double c2 = constants_[3];               // > 0
-    const double sigma  = slab_scale_();
+    const auto* informed = dynamic_cast<const InformedNormalPrior*>(interaction_prior_.get());
+    const double slab_mean = informed ? -2.0 * informed->mean(i,j) : 0.0;
+    const double sigma  = informed ? informed->sd(i,j) : slab_scale_();
     const double inv_4s2 = 1.0 / (4.0 * sigma * sigma);
     const auto* diagp = static_cast<const GammaScalePrior*>(diagonal_prior_.get());
     const double beta0 = diagp->rate();
@@ -1022,7 +1034,7 @@ double GGMModel::update_edge_indicator_conjugate(size_t i, size_t j) {
     //   Q  = c2^2/(4 sigma^2 omega) + beta0 + S_jj
     //   mu = -c2 (S_ij + c1/(4 sigma^2 omega)) / Q
     const double Q  = c2 * c2 * inv_4s2w + beta0 + suf_stat_(j, j);
-    const double mu = -c2 * (suf_stat_(i, j) + c1 * inv_4s2w) / Q;
+    const double mu = -c2 * (suf_stat_(i, j) + (c1 - slab_mean) * inv_4s2w) / Q;
 
     // Proposal ordinate at the spike phi_0 = -c1/c2, on the k_ij scale
     // (q(0) = q_phi(phi_0)/c2), and the (conditional Gaussian) slab density of
@@ -1032,7 +1044,7 @@ double GGMModel::update_edge_indicator_conjugate(size_t i, size_t j) {
     const double log_q0 = 0.5 * (MY_LOG(Q) - MY_LOG(2.0 * arma::datum::pi))
                           - 0.5 * Q * d * d - MY_LOG(c2);
     const double log_pslab0 =
-        -0.5 * MY_LOG(2.0 * arma::datum::pi * 4.0 * sigma * sigma * w);
+        -0.5 * MY_LOG(2.0 * arma::datum::pi * 4.0 * sigma * sigma * w) - 0.5 * slab_mean * slab_mean * inv_4s2w;
     const double log_odds = MY_LOG(inclusion_probability_(i, j))
                             - MY_LOG(1.0 - inclusion_probability_(i, j));
 

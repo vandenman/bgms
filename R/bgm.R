@@ -58,10 +58,18 @@
 #'   matrix settles, and edge selection is active for the remaining 85\%;
 #'   both windows scale with the warmup budget. Default: \code{2e3}.
 #'
+#' @param normalizer_control Optional named list for informed GGM graph selection.
+#'   Controls the deterministic SMC normalizer: particles_initial (1024),
+#'   particles_max (1048576), particles_multiplier (4), replicas (32),
+#'   rejuvenation_sweeps (1), master_seed (1), log_z_tol (0.001), and
+#'   nominal_confidence (0.99). Precision intervals are estimated; they do not
+#'   certify approximation accuracy. Exhausted budgets stop the fit.
 #' @param interaction_prior A prior specification object for pairwise
 #'   interaction parameters, created by one of the prior constructor functions:
 #'   \itemize{
 #'     \item \code{\link{normal_prior}()}: Normal(0, scale) prior (default).
+#'     \item \code{\link{informed_normal_prior}()}: Fixed edge-specific Gaussian
+#'       means and SDs for pure GGMs, with an explicit exponential diagonal rate.
 #'     \item \code{\link{cauchy_prior}()}: Cauchy(0, scale) prior.
 #'     \item \code{\link{beta_prime_prior}()}: Beta-prime prior.
 #'   }
@@ -527,7 +535,8 @@ bgm = function(
   threshold_alpha,
   threshold_beta,
   # Deprecated arguments (v0.2.0.0)
-  standardize
+  standardize,
+  normalizer_control = NULL
 ) {
   # Set verbose option for internal functions, restore on exit
 
@@ -665,6 +674,10 @@ bgm = function(
   }
 
   # --- Unpack prior objects to flat parameters for bgm_spec -------------------
+  if(identical(means_prior$family, "informed-normal") ||
+    identical(threshold_prior$family, "informed-normal")) {
+    stop("informed_normal_prior() is supported only for GGM interactions.")
+  }
   ip = unpack_interaction_prior(interaction_prior)
   tp = unpack_threshold_prior(threshold_prior)
   mp = unpack_parameter_prior(means_prior)
@@ -721,6 +734,7 @@ bgm = function(
     progress_callback = progress_callback
   )
 
+  spec = attach_informed_prior(spec, interaction_prior, normalizer_control)
   raw = run_sampler(spec)
   output = build_output(spec, raw)
   return(output)
