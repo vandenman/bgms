@@ -1,0 +1,92 @@
+Informed normalizer optimization pass
+====================================
+
+The three-variable example supplied by the user took 250.867 seconds before
+this pass (100 observations, M=.1, S=.15, rate=2, delta=0, Gibbs, 1000 retained
+iterations, 500 warmup, two chains/two cores). The equivalent runnable MWE
+completed in 22.725 seconds after this pass on the same machine and R/renv
+installation: about 11x faster. Tolerance and particle budgets are unchanged.
+The before/after runs are single measurements, not a formal benchmark study.
+
+Changes
+-------
+- Exact star factorization into one-edge quadratures, with the original global
+  delta in every factor. This covers all connected non-complete p=3 graphs.
+  An unresolved quadrature falls back to the existing SMC calculation.
+- Scalar Gaussian row masses and scalar draws avoid matrix factorizations and
+  triangular solves. General solves retain the no-approximation safeguard.
+- A cache scoped to one fit is shared by cloned informed normalizers. A mutex
+  protects insertion of a shared future per graph; the owner computes outside
+  the lock. Other chains receive that same immutable result or typed failure.
+  Different graphs can be computed concurrently. No R objects are cached.
+- Normalizer RNG streams still depend on graph/prior/control values, not on
+  chain scheduling or the chain's sampling RNG. Separate fits and components
+  with changed parameter contexts receive separate caches.
+- Progress/interrupt polling occurs during particle batches, between replicas,
+  and during cache waits. R API calls remain confined to the R main thread.
+  An interrupted normalizer aborts the fit, without returning a partial fit.
+
+Diagnostics
+-----------
+The measured MWE computed seven top-level graph normalizers in total across
+both chains (3 + 4), rather than seven per chain. Both chains reported a maximum
+particle count of 65536 and maximum estimated half-width .000920941.
+backend_version is now 2; cache_scope is shared_within_fit. unique_graphs is
+the number computed by the reporting chain, cache_hits includes cross-chain
+reuse, and seconds includes waiting. Per-chain times therefore are not additive.
+
+Validation
+----------
+- Concurrent requests compute one normalizer, with identical results in all
+  four requesters and in a separate independently initialized normalizer.
+- Concurrent numerical failures and cancellation release all waiting callers.
+- A different prior in a separate normalizer cannot reuse the previous value.
+- Two-chain serial and parallel runs give bitwise-identical parameter and
+  indicator draws, with the same total number of computed normalizers.
+- Heterogeneous stars at p=3/5/10/20 match independent one-edge quadratures in
+  both vertex orders. Scalar masses/means/covariances have analytic checks.
+- The review's cancellation/ill-conditioning/reference/alignment tests remain.
+- Sending SIGINT during the actual two-core MWE returned promptly, with
+  'Informed normalizer failure: interrupted by user'. The signal was delivered
+  during the calculation, not at an ordinary MCMC iteration boundary.
+
+Example
+-------
+From the project root, after R CMD INSTALL . and restarting R:
+
+  source("inst/examples/informed-normal.R")
+
+Or from the installed package:
+
+  source(system.file("examples", "informed-normal.R", package = "bgms"))
+
+The script defines x, M, S, fit, and fit_informed(). It prints timing, posterior
+inclusion probabilities, posterior means on the theta=-K/2 interaction scale,
+and normalizer diagnostics. It also prepares M2/S2 with a different A--B factor:
+
+  fit2 = fit_informed(x, M2, S2)
+
+Diagonal entries of both M and S are ignored and set to zero by the constructor.
+precision_scale_prior supplies the separate diagonal factors. Positive
+definiteness and determinant tilting affect the resulting joint/marginal prior;
+the Gaussian M/S factors are not marginal priors or partial correlations.
+
+Limits
+------
+General connected graphs still require SMC and can be expensive. Cache sharing
+eliminates duplicate work within a fit; it does not reuse results between fits
+or relax the precision target. Existing empirical accuracy limitations remain.
+
+Final results
+-------------
+The complete default suite passed: 8719 assertions, zero failures/warnings,
+282 existing dependency/tier skips. The independent p=3 graph-law script passed
+all 12 neighboring ratios: maximum discrepancy plus reference allowance
+.00081198 nat, graph-law TV upper .00092233 (gates .003 and .005).
+
+The installed MWE was rerun successfully after the final build (23.260 seconds).
+Its optional M2/S2 refit also completed (87.945 seconds). The A--B inclusion
+probability changed from about .278 to .0129 for that more concentrated,
+negative interaction factor. This is a posterior sensitivity illustration,
+not an additional calibration claim. These timings reinforce that other prior
+settings can remain substantially more expensive than the baseline MWE.

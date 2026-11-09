@@ -354,7 +354,8 @@ Rcpp::List convert_results_to_list(const std::vector<ChainResult>& results) {
         chain_list["fatal_normalizer"] = chain.fatal_normalizer;
         if (chain.informed_normalizer) chain_list["informed_normalizer"] = Rcpp::List::create(
             Rcpp::Named("method") = "smc",
-            Rcpp::Named("backend_version") = 1,
+            Rcpp::Named("backend_version") = 2,
+            Rcpp::Named("cache_scope") = "shared_within_fit",
             Rcpp::Named("seconds") = chain.informed_seconds,
             Rcpp::Named("largest_particles") = chain.informed_particles,
             Rcpp::Named("unique_graphs") = chain.informed_evaluations,

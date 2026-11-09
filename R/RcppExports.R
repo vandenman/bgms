@@ -73,6 +73,10 @@ informed_normal_gradient_cpp <- function(theta, sufficient, n, graph, mean, sd, 
     .Call(`_bgms_informed_normal_gradient_cpp`, theta, sufficient, n, graph, mean, sd, shape, rate)
 }
 
+informed_normal_shared_cpp <- function(spec, graph, workers, interrupt = FALSE) {
+    .Call(`_bgms_informed_normal_shared_cpp`, spec, graph, workers, interrupt)
+}
+
 .compute_ess_cpp <- function(array3d) {
     .Call(`_bgms_compute_ess_cpp`, array3d)
 }

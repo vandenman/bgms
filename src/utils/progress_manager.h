@@ -83,6 +83,8 @@ public:
      * printing and interrupt checks run only when called on the R main thread.
      */
     void update(size_t chainId);
+    /** Refresh display and interrupts without counting an iteration. */
+    void pulse() { poll(); }
 
     /** Print the final progress state and release the progress lines. */
     void finish();

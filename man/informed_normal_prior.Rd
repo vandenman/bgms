@@ -27,6 +27,14 @@ matrices follow data column order. Only pure GGMs with exponential precision
 diagonals and an explicit raw rate are supported. Graph selection requires
 the hierarchical specification. The SMC correction defines an approximate
 posterior with a frozen normalizer for each graph.
+Star graphs use a product of one-edge quadratures with the original global
+delta. Other connected graphs use SMC. Frozen normalizers are shared safely
+between chains within one fit; separate fits have separate caches.
+Diagonal entries of both matrices are ignored and stored as zero. They do
+not set precision-diagonal priors; use \code{precision_scale_prior} for those.
+In \code{fit$normalizer_diagnostics}, \code{unique_graphs} counts normalizers
+computed by that chain, \code{cache_hits} includes cross-chain reuse, and
+\code{seconds} includes time waiting for another chain.
 }
 \examples{
 M = matrix(0.1, 3, 3)

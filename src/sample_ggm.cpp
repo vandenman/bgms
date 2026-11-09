@@ -111,7 +111,7 @@ Rcpp::List sample_ggm(
     // Hierarchical prior specification: attach the per-edge Z-ratio engine
     // so the between-edge moves target p(K | Gamma) = rho_Gamma(K)/Z(Gamma).
     // The constants are resolved at R spec-build (zratio_constants); each
-    // chain clone deep-copies the engine with its cache.
+    // chain clone copies the engine, sharing the informed-only cache.
     // The spec carries the whole deployment policy R resolved -- constants,
     // Option-B surfaces, isolated-edge routing, gauge sweeps -- and
     // zratio_engine_from_spec is the one place that reads it, shared with the
@@ -146,6 +146,16 @@ Rcpp::List sample_ggm(
 
     // Set up progress manager
     ProgressManager pm(no_chains, no_iter, no_warmup, 50, progress_type, true, progress_callback);
+
+    model.set_informed_heartbeat([&pm]() {
+        pm.pulse();
+        if (pm.shouldExit()) throw InformedNormalizerFailure("interrupted by user");
+    });
+    if (zratio_spec.isNotNull() && progress_type != 0) {
+        Rcpp::List zs(zratio_spec.get());
+        if (zs.containsElementNamed("family") && Rcpp::as<std::string>(zs["family"]) == "informed-normal")
+            Rcpp::Rcout << "Computing and sharing informed graph normalizers as needed.\n";
+    }
 
     // Create edge prior
     EdgePrior edge_prior_enum = edge_prior_from_string(edge_prior);

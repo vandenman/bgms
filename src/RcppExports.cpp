@@ -335,6 +335,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// informed_normal_shared_cpp
+Rcpp::List informed_normal_shared_cpp(Rcpp::List spec, const arma::imat& graph, int workers, bool interrupt);
+RcppExport SEXP _bgms_informed_normal_shared_cpp(SEXP specSEXP, SEXP graphSEXP, SEXP workersSEXP, SEXP interruptSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type spec(specSEXP);
+    Rcpp::traits::input_parameter< const arma::imat& >::type graph(graphSEXP);
+    Rcpp::traits::input_parameter< int >::type workers(workersSEXP);
+    Rcpp::traits::input_parameter< bool >::type interrupt(interruptSEXP);
+    rcpp_result_gen = Rcpp::wrap(informed_normal_shared_cpp(spec, graph, workers, interrupt));
+    return rcpp_result_gen;
+END_RCPP
+}
 // compute_ess_cpp
 Rcpp::NumericVector compute_ess_cpp(Rcpp::NumericVector array3d);
 RcppExport SEXP _bgms_compute_ess_cpp(SEXP array3dSEXP) {
@@ -1099,6 +1113,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bgms_informed_normal_mass_cpp", (DL_FUNC) &_bgms_informed_normal_mass_cpp, 4},
     {"_bgms_informed_normal_row_cpp", (DL_FUNC) &_bgms_informed_normal_row_cpp, 4},
     {"_bgms_informed_normal_gradient_cpp", (DL_FUNC) &_bgms_informed_normal_gradient_cpp, 8},
+    {"_bgms_informed_normal_shared_cpp", (DL_FUNC) &_bgms_informed_normal_shared_cpp, 4},
     {"_bgms_compute_ess_cpp", (DL_FUNC) &_bgms_compute_ess_cpp, 1},
     {"_bgms_compute_rhat_cpp", (DL_FUNC) &_bgms_compute_rhat_cpp, 1},
     {"_bgms_compute_indicator_ess_cpp", (DL_FUNC) &_bgms_compute_indicator_ess_cpp, 1},

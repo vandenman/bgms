@@ -5,7 +5,11 @@
 #include <boost/math/quadrature/gauss_kronrod.hpp>
 #include <chrono>
 #include <cstring>
+#include <functional>
+#include <future>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <stdexcept>
 
 class InformedNormalizerFailure : public std::runtime_error {
@@ -21,6 +25,27 @@ class InformedNormalizer {
     int initial_ = 1024, maximum_ = 1048576, multiplier_ = 4, replicas_ = 32;
     int seed_ = 1, sweeps_ = 1;
     std::map<std::string, double> cache_;
+    struct CachedPotential {
+        double value, half;
+        int particles;
+    };
+    struct SharedCache {
+        std::mutex mutex;
+        std::map<std::string, std::shared_future<CachedPotential>> entries;
+    };
+    std::shared_ptr<SharedCache> shared_ = std::make_shared<SharedCache>();
+    std::function<void()> heartbeat_;
+    void heartbeat() const {
+        if (heartbeat_)
+            heartbeat_();
+    }
+    static std::string graph_key(const arma::imat &G) {
+        std::string key;
+        for (size_t j = 1; j < G.n_cols; ++j)
+            for (size_t i = 0; i < j; ++i)
+                key.push_back(G(i, j) ? '1' : '0');
+        return key;
+    }
     struct Row {
         arma::mat U, L;
         arma::vec u;
@@ -30,6 +55,20 @@ class InformedNormalizer {
         Row r;
         if (N.is_empty()) {
             r.U.zeros(A.n_rows, 0);
+            return r;
+        }
+        if (A.n_rows == 1 && N.n_elem == 1) {
+            const double a = A(0, 0), u = s(0) / std::sqrt(a), b = 1 + 2 * beta_ * u * u;
+            r.U.set_size(1, 1);
+            r.U(0, 0) = u;
+            r.L.set_size(1, 1);
+            r.L(0, 0) = std::sqrt(b);
+            r.u.set_size(1);
+            r.u(0) = (m(0) / s(0)) / b;
+            r.logh = -.5 * std::log1p(2 * beta_ * u * u) -
+                     beta_ * m(0) * m(0) / (a + 2 * beta_ * s(0) * s(0));
+            if (!(a > 0) || !std::isfinite(b) || !std::isfinite(r.logh) || !r.u.is_finite())
+                throw InformedNormalizerFailure("nonfinite scalar row");
             return r;
         }
         arma::mat E(A.n_rows, N.n_elem, arma::fill::zeros), LA;
@@ -43,8 +82,8 @@ class InformedNormalizer {
             throw InformedNormalizerFailure("row Cholesky");
         arma::vec v = m / s;
         r.u = arma::solve(arma::trimatu(r.L.t()),
-            arma::solve(arma::trimatl(r.L), v, arma::solve_opts::no_approx),
-            arma::solve_opts::no_approx);
+                          arma::solve(arma::trimatl(r.L), v, arma::solve_opts::no_approx),
+                          arma::solve_opts::no_approx);
         r.logh = -arma::sum(arma::log(r.L.diag())) -
                  .5 * (arma::accu(arma::square(r.u - v)) +
                        2 * beta_ * arma::accu(arma::square(r.U * r.u)));
@@ -55,9 +94,17 @@ class InformedNormalizer {
     arma::vec draw(const Row &r, SafeRNG &rng) const {
         if (r.u.is_empty())
             return arma::vec();
-        arma::vec z = r.u + arma::solve(arma::trimatu(r.L.t()),
-            arma_rnorm_vec(rng, r.u.n_elem), arma::solve_opts::no_approx);
-        if (!z.is_finite()) throw InformedNormalizerFailure("nonfinite conditional draw");
+        if (r.u.n_elem == 1) {
+            arma::vec z = r.u;
+            z(0) += rnorm(rng, 0, 1) / r.L(0, 0);
+            if (!z.is_finite())
+                throw InformedNormalizerFailure("nonfinite conditional draw");
+            return z;
+        }
+        arma::vec z = r.u + arma::solve(arma::trimatu(r.L.t()), arma_rnorm_vec(rng, r.u.n_elem),
+                                        arma::solve_opts::no_approx);
+        if (!z.is_finite())
+            throw InformedNormalizerFailure("nonfinite conditional draw");
         return z;
     }
     void rejuvenate(arma::mat &K, const arma::imat &G, SafeRNG &rng) const {
@@ -100,6 +147,8 @@ class InformedNormalizer {
             std::vector<Row> rows;
             rows.reserve(particles);
             for (int r = 0; r < particles; ++r) {
+                if (r % 256 == 0)
+                    heartbeat();
                 rows.push_back(row(K[r], N, m, s));
                 logw(r) = rows.back().logh;
             }
@@ -114,6 +163,8 @@ class InformedNormalizer {
             double offset = runif(rng) / particles, cdf = w(0);
             int a = 0;
             for (int r = 0; r < particles; ++r) {
+                if (r % 256 == 0)
+                    heartbeat();
                 double point = offset + double(r) / particles;
                 while (point > cdf && a + 1 < particles)
                     cdf += w(++a);
@@ -134,19 +185,21 @@ class InformedNormalizer {
     }
 
   public:
-    Rcpp::List inspect_row(const arma::mat& A, const arma::vec& m,
-                           const arma::vec& s, double beta) {
+    Rcpp::List inspect_row(const arma::mat &A, const arma::vec &m, const arma::vec &s,
+                           double beta) {
         beta_ = beta;
         try {
             Row r = row(A, arma::regspace<arma::uvec>(0, A.n_rows - 1), m, s);
-            arma::mat noise = arma::solve(arma::trimatu(r.L.t()),
-                arma::eye(s.n_elem, s.n_elem), arma::solve_opts::no_approx);
+            arma::mat noise = arma::solve(arma::trimatu(r.L.t()), arma::eye(s.n_elem, s.n_elem),
+                                          arma::solve_opts::no_approx);
             arma::mat scaled = arma::diagmat(s) * noise;
-            return Rcpp::List::create(Rcpp::Named("log_h") = r.logh,
-                Rcpp::Named("mean") = s % r.u,
-                Rcpp::Named("covariance") = scaled * scaled.t());
-        } catch (const std::exception& e) { throw InformedNormalizerFailure(e.what()); }
+            return Rcpp::List::create(Rcpp::Named("log_h") = r.logh, Rcpp::Named("mean") = s % r.u,
+                                      Rcpp::Named("covariance") = scaled * scaled.t());
+        } catch (const std::exception &e) {
+            throw InformedNormalizerFailure(e.what());
+        }
     }
+    void set_heartbeat(std::function<void()> callback) { heartbeat_ = std::move(callback); }
     bool active = false;
     long hits = 0, evaluations = 0;
     double largest_half_width = 0, seconds = 0;
@@ -170,7 +223,47 @@ class InformedNormalizer {
     double potential(const arma::imat &G) {
         auto start = std::chrono::steady_clock::now();
         try {
-            double value = potential_impl(G);
+            heartbeat();
+            const std::string key = graph_key(G);
+            if (key.find('1') == std::string::npos)
+                return 0;
+            std::shared_future<CachedPotential> future;
+            std::shared_ptr<std::promise<CachedPotential>> promise;
+            {
+                std::lock_guard<std::mutex> lock(shared_->mutex);
+                auto found = shared_->entries.find(key);
+                if (found == shared_->entries.end()) {
+                    promise = std::make_shared<std::promise<CachedPotential>>();
+                    future = promise->get_future().share();
+                    shared_->entries.emplace(key, future);
+                } else
+                    future = found->second;
+            }
+            if (promise) {
+                try {
+                    double value = potential_impl(G);
+                    promise->set_value({value, largest_half_width, largest_particles});
+                } catch (const InformedNormalizerFailure &e) {
+                    promise->set_exception(std::make_exception_ptr(e));
+                    throw;
+                } catch (const std::exception &e) {
+                    InformedNormalizerFailure failure(e.what());
+                    promise->set_exception(std::make_exception_ptr(failure));
+                    throw failure;
+                } catch (...) {
+                    InformedNormalizerFailure failure("unknown normalizer error");
+                    promise->set_exception(std::make_exception_ptr(failure));
+                    throw failure;
+                }
+            } else {
+                while (future.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready)
+                    heartbeat();
+                ++hits;
+            }
+            const auto result = future.get();
+            largest_half_width = std::max(largest_half_width, result.half);
+            largest_particles = std::max(largest_particles, result.particles);
+            double value = result.value;
             seconds +=
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
             return value;
@@ -247,6 +340,7 @@ class InformedNormalizer {
                 sub.mean_ = mean_.submat(idx, idx);
                 sub.sd_ = sd_.submat(idx, idx);
                 sub.cache_.clear();
+                sub.shared_ = std::make_shared<SharedCache>();
                 sub.tol_ = tol_ / count;
                 sub.confidence_ = 1.0 - (1.0 - confidence_) / count;
                 sub.largest_half_width = 0;
@@ -260,23 +354,39 @@ class InformedNormalizer {
             ++evaluations;
             return sum;
         }
-        if (G.n_rows == 2) {
-            double m = mean_(0, 1), tau = sd_(0, 1), error = 0;
-            auto integrand = [&](double t) {
-                if (t <= 0 || t >= 1)
-                    return 0.0;
-                double a = t / (1 - t), den = a + 2 * beta_ * tau * tau;
-                return std::exp((delta_ + 1) * std::log(beta_) - std::lgamma(delta_ + 1) +
-                                delta_ * std::log(a) - beta_ * a -
-                                0.5 * std::log1p(2 * beta_ * tau * tau / a) - beta_ * m * m / den -
-                                2 * std::log1p(-t));
-            };
-            double z = boost::math::quadrature::gauss_kronrod<double, 61>::integrate(
-                integrand, 0, 1, 15, 1e-10, &error);
-            if (z > 0 && std::isfinite(z) && error / z < tol_ * 0.1) {
-                cache_[key] = std::log(z);
+        // Integrating the hub last factorizes a star into one-edge integrals,
+        // each retaining the original global delta.
+        arma::ivec degree = arma::sum(G, 1) - G.diag();
+        const arma::uword hub = degree.index_max();
+        if (degree(hub) == int(G.n_rows) - 1 && arma::accu(degree) == 2 * (int(G.n_rows) - 1)) {
+            double total = 0;
+            bool resolved = true;
+            for (arma::uword leaf = 0; leaf < G.n_rows; ++leaf) {
+                if (leaf == hub)
+                    continue;
+                heartbeat();
+                double m = mean_(leaf, hub), tau = sd_(leaf, hub), error = 0;
+                auto integrand = [&](double t) {
+                    if (t <= 0 || t >= 1)
+                        return 0.0;
+                    double a = t / (1 - t), den = a + 2 * beta_ * tau * tau;
+                    return std::exp((delta_ + 1) * std::log(beta_) - std::lgamma(delta_ + 1) +
+                                    delta_ * std::log(a) - beta_ * a -
+                                    .5 * std::log1p(2 * beta_ * tau * tau / a) -
+                                    beta_ * m * m / den - 2 * std::log1p(-t));
+                };
+                double z = boost::math::quadrature::gauss_kronrod<double, 61>::integrate(
+                    integrand, 0, 1, 15, 1e-10, &error);
+                if (!(z > 0) || !std::isfinite(z) || error / z >= tol_ * .1 / (G.n_rows - 1)) {
+                    resolved = false;
+                    break;
+                }
+                total += std::log(z);
+            }
+            if (resolved) {
+                cache_[key] = total;
                 ++evaluations;
-                return cache_[key];
+                return total;
             }
         }
         int levels = 1;
@@ -293,6 +403,7 @@ class InformedNormalizer {
                     uint64_t stream = hash ^ (uint64_t(seed_) * 0x9e3779b97f4a7c15ULL);
                     stream ^=
                         uint64_t(1 + r + replicas_ * (phase + 2 * level)) * 0xbf58476d1ce4e5b9ULL;
+                    heartbeat();
                     logs(r) = replica(G, n, stream);
                 }
                 double mx = logs.max();

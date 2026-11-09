@@ -167,3 +167,40 @@ Rcpp::List informed_normal_gradient_cpp(const arma::vec &theta,
   return Rcpp::List::create(Rcpp::Named("value") = result.first,
                             Rcpp::Named("gradient") = result.second);
 }
+
+// [[Rcpp::export]]
+Rcpp::List informed_normal_shared_cpp(Rcpp::List spec, const arma::imat& graph,
+                                       int workers, bool interrupt = false) {
+    InformedNormalizer base(spec);
+    if (interrupt) base.set_heartbeat([calls=0]() mutable {
+        if (++calls == 3) throw InformedNormalizerFailure("interrupted by test");
+    });
+    struct Result { double value; long evaluations, hits; std::string error; };
+    std::promise<void> release;
+    auto start=release.get_future().share();
+    std::vector<std::future<Result>> pending;
+    for (int i=0; i<workers; ++i) {
+        pending.push_back(std::async(std::launch::async, [normalizer=base,graph,start]() mutable {
+            start.wait();
+            try {
+                double value=normalizer.potential(graph);
+                return Result{value,normalizer.evaluations,normalizer.hits,""};
+            } catch (const std::exception& e) {
+                return Result{0,normalizer.evaluations,normalizer.hits,e.what()};
+            }
+        }));
+    }
+    release.set_value();
+    Rcpp::NumericVector values(workers), evaluations(workers), hits(workers);
+    Rcpp::CharacterVector errors(workers);
+    for (int i=0; i<workers; ++i) {
+        auto result=pending[i].get();
+        values[i]=result.value;
+        evaluations[i]=result.evaluations;
+        hits[i]=result.hits;
+        errors[i]=result.error;
+    }
+    return Rcpp::List::create(Rcpp::Named("values")=values,
+        Rcpp::Named("evaluations")=evaluations,Rcpp::Named("hits")=hits,
+        Rcpp::Named("errors")=errors);
+}

@@ -176,11 +176,16 @@ public:
      * to the hierarchical prior specification p(K | Gamma) = rho/Z(Gamma):
      * the add acceptance gains log J = log(Z(Gamma-)/Z(Gamma+)) and the
      * delete acceptance its negation. Each chain clone deep-copies the
-     * engine, so per-chain caches never cross threads.
+     * engine; informed normalizers share a synchronized fit-local cache.
      */
     void set_zratio_engine(std::shared_ptr<ZRatioEngine> engine) {
         zratio_engine_ = std::move(engine);
         if (zratio_engine_) zratio_engine_->set_rng(&rng_);
+    }
+
+    void set_informed_heartbeat(std::function<void()> callback) {
+        if (zratio_engine_ && zratio_engine_->informed.active)
+            zratio_engine_->informed.set_heartbeat(std::move(callback));
     }
 
     /** Trust gauge available iff the hierarchical Z-ratio engine is attached. */
