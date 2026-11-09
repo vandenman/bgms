@@ -78,6 +78,10 @@
 #'   Used only for \code{spec = "conditional"}.
 #' @param seed Integer. RNG seed for the chain. Default \code{1L}.
 #' @param verbose Logical. If \code{TRUE} (default), print a progress bar.
+#' @details For informed priors, named graph vertices define the order. Without
+#'   graph names, the mean matrix names define the order, or the SD matrix names
+#'   when only SD is named. Otherwise order is positional. Unnamed prior matrices
+#'   always retain their positional meaning in that order.
 #' @param edge_indicators Optional integer \eqn{p \times p} matrix with
 #'   \code{1} = edge included, \code{0} = excluded. Must be symmetric with
 #'   \code{1}s on the diagonal. Default: full graph (all edges included).
@@ -286,9 +290,9 @@ sample_ggm_prior = function(
     sp$scale_rate, sp$scale_eta, ip$pairwise_scale
   )
 
-  edge_indicators = validate_ggm_prior_edge_indicators(edge_indicators, p)
-
   informed = identical(ip$interaction_prior_type, "informed-normal")
+  graph_context = if(informed) informed_graph_context(edge_indicators) else list(graph = edge_indicators)
+  edge_indicators = validate_ggm_prior_edge_indicators(graph_context$graph, p)
   if(!is.null(normalizer_control) && (!informed || spec != "hierarchical")) {
     stop("normalizer_control requires informed hierarchical graph selection.")
   }
@@ -296,15 +300,15 @@ sample_ggm_prior = function(
   if(informed) {
     prior_spec = list(
       model_type = "ggm",
-      data = list(num_variables = p, data_columnnames = as.character(seq_len(p))),
+      data = list(
+        num_variables = p, data_columnnames =
+          align_informed_matrices(interaction_prior, p, graph_context$labels)$labels
+      ),
       prior = c(sp, list(
         edge_selection = spec != "conditional",
         precision_graph_prior = if(spec == "conditional") "hierarchical" else spec
       ))
     )
-    if(!is.null(rownames(interaction_prior$hyper.parameters$mean))) {
-      prior_spec$data$data_columnnames = rownames(interaction_prior$hyper.parameters$mean)
-    }
     prior_spec = attach_informed_prior(prior_spec, interaction_prior, normalizer_control)
     informed_p = c(prior_spec$prior, list(delta = delta))
   }

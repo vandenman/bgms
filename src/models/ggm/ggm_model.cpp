@@ -1,3 +1,4 @@
+#include "gaussian_integrated_mass.h"
 #include "models/ggm/ggm_model.h"
 #include "rng/rng_utils.h"
 #include "math/explog_macros.h"
@@ -1036,15 +1037,11 @@ double GGMModel::update_edge_indicator_conjugate(size_t i, size_t j) {
     const double Q  = c2 * c2 * inv_4s2w + beta0 + suf_stat_(j, j);
     const double mu = -c2 * (suf_stat_(i, j) + (c1 - slab_mean) * inv_4s2w) / Q;
 
-    // Proposal ordinate at the spike phi_0 = -c1/c2, on the k_ij scale
-    // (q(0) = q_phi(phi_0)/c2), and the (conditional Gaussian) slab density of
-    // k_ij at 0: N(0; 0, 4 sigma^2 omega).
     const double phi0 = -c1 / c2;
-    const double d = phi0 - mu;
-    const double log_q0 = 0.5 * (MY_LOG(Q) - MY_LOG(2.0 * arma::datum::pi))
-                          - 0.5 * Q * d * d - MY_LOG(c2);
-    const double log_pslab0 =
-        -0.5 * MY_LOG(2.0 * arma::datum::pi * 4.0 * sigma * sigma * w) - 0.5 * slab_mean * slab_mean * inv_4s2w;
+    const double a = (beta0 + suf_stat_(j, j)) / (c2 * c2);
+    const double b = a * c1 - suf_stat_(i, j);
+    const double log_mass = gaussian_integrated_log_mass(
+        a, b, slab_mean, 4.0 * sigma * sigma * w);
     const double log_odds = MY_LOG(inclusion_probability_(i, j))
                             - MY_LOG(1.0 - inclusion_probability_(i, j));
 
@@ -1056,7 +1053,7 @@ double GGMModel::update_edge_indicator_conjugate(size_t i, size_t j) {
     // Hierarchical spec: the add ratio also carries the per-graph normalizer
     // ratio J = Z(Gamma-)/Z(Gamma+), state-invariant for the toggled edge,
     // so the delete reciprocal handles it with the same value.
-    double log_A_add = log_odds + log_pslab0 - log_q0;
+    double log_A_add = log_odds + log_mass;
     double log_j_conj = 0.0;
     if (zratio_engine_) {
         log_j_conj = zratio_engine_->log_zratio(edge_indicators_,

@@ -29,3 +29,32 @@ allowance = expm1(2 * (pathref$half_width + triref$half_width)) / 2
 print(c(tv = tv, reference_allowance = allowance, upper = tv + allowance))
 saveRDS(list(path = pathref, triangle = triref, tv = tv, allowance = allowance), file.path(tempdir(), "bgms-informed-graph-law.rds"))
 stopifnot(pathref$half_width <= 0.0005, triref$half_width <= 0.0005, tv + allowance <= 0.005)
+
+ratio_checks = do.call(rbind, lapply(seq_along(graphs), function(k) {
+  absent = which(upper.tri(graphs[[k]]) & graphs[[k]] == 0L, arr.ind = TRUE)
+  if(!nrow(absent)) {
+    return(NULL)
+  }
+  do.call(rbind, lapply(seq_len(nrow(absent)), function(e) {
+    next_graph = graphs[[k]]
+    ij = absent[e, ]
+    next_graph[ij[1], ij[2]] = next_graph[ij[2], ij[1]] = 1L
+    next_index = which(vapply(graphs, identical, logical(1), next_graph))
+    edges = sum(graphs[[k]]) / 2
+    half = switch(as.character(edges),
+      "0" = 0,
+      "1" = pathref$half_width,
+      "2" = triref$half_width
+    )
+    discrepancy = abs((production[k] - production[next_index]) - (reference[k] - reference[next_index]))
+    data.frame(
+      graph = k, next_graph = next_index, discrepancy = discrepancy,
+      reference_half_width = half, upper = discrepancy + half
+    )
+  }))
+}))
+print(ratio_checks)
+stopifnot(
+  nrow(ratio_checks) == 12L, all(ratio_checks$reference_half_width <= .0005),
+  all(ratio_checks$upper <= .003)
+)

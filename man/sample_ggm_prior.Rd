@@ -219,6 +219,11 @@ indicators given the hyperparameters), keyed to \code{seed}. Under a
 hierarchical edge prior the inclusion parameter and the graph density
 are coupled, and a full-graph start can pin both near 1 for a large
 number of sweeps in zero-evidence chains.
+
+For informed priors, named graph vertices define the order. Without
+graph names, the mean matrix names define the order, or the SD matrix names
+when only SD is named. Otherwise order is positional. Unnamed prior matrices
+always retain their positional meaning in that order.
 }
 \examples{
 \donttest{

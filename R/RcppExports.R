@@ -61,6 +61,18 @@ informed_normal_reference_cpp <- function(graph, mean, sd, rate, delta, i, j, dr
     .Call(`_bgms_informed_normal_reference_cpp`, graph, mean, sd, rate, delta, i, j, draws, warmup, chains, seed)
 }
 
+informed_normal_mass_cpp <- function(a, b, mean, variance) {
+    .Call(`_bgms_informed_normal_mass_cpp`, a, b, mean, variance)
+}
+
+informed_normal_row_cpp <- function(A, mean, sd, beta) {
+    .Call(`_bgms_informed_normal_row_cpp`, A, mean, sd, beta)
+}
+
+informed_normal_gradient_cpp <- function(theta, sufficient, n, graph, mean, sd, shape, rate) {
+    .Call(`_bgms_informed_normal_gradient_cpp`, theta, sufficient, n, graph, mean, sd, shape, rate)
+}
+
 .compute_ess_cpp <- function(array3d) {
     .Call(`_bgms_compute_ess_cpp`, array3d)
 }

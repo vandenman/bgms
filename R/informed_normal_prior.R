@@ -111,19 +111,9 @@ attach_informed_prior = function(spec, prior, control = NULL) {
   if(p$edge_selection && p$precision_graph_prior != "hierarchical") {
     stop("Informed graph selection requires precision_graph_prior = 'hierarchical'.")
   }
-  hp = prior$hyper.parameters
-  for(n in c("mean", "sd")) {
-    x = hp[[n]]
-    if(nrow(x) != spec$data$num_variables) stop("Informed prior dimensions must match the data.")
-    if(!is.null(dimnames(x))) {
-      labels = spec$data$data_columnnames
-      if(anyDuplicated(labels) || !setequal(rownames(x), labels)) {
-        stop("Informed prior names must match the fitted data columns exactly.")
-      }
-      x = x[labels, labels, drop = FALSE]
-    }
-    spec$prior[[paste0("interaction_", n)]] = x
-  }
+  hp = align_informed_matrices(prior, spec$data$num_variables, spec$data$data_columnnames)
+  spec$prior$interaction_mean = hp$mean
+  spec$prior$interaction_sd = hp$sd
   spec$prior$normalizer_control = if(p$edge_selection) resolve_informed_control(control) else NULL
   spec
 }
@@ -134,4 +124,35 @@ informed_normal_spec = function(p) {
     sd = p$interaction_sd, rate = p$scale_rate, delta = p$delta,
     control = p$normalizer_control, gauge_sweeps = 0L
   )
+}
+
+informed_graph_context = function(graph) {
+  if(is.null(graph) || is.null(dimnames(graph))) {
+    return(list(graph = graph, labels = NULL))
+  }
+  rows = rownames(graph)
+  cols = colnames(graph)
+  valid = function(x) !is.null(x) && !anyNA(x) && all(nzchar(x)) && !anyDuplicated(x)
+  if(!valid(rows) || !valid(cols) || !setequal(rows, cols)) {
+    stop("Graph axes require unique, nonempty, matching vertex names.")
+  }
+  list(graph = graph[, rows, drop = FALSE], labels = rows)
+}
+
+align_informed_matrices = function(prior, p, labels = NULL) {
+  hp = prior$hyper.parameters
+  if(is.null(labels)) labels = rownames(hp$mean) %||% rownames(hp$sd) %||% as.character(seq_len(p))
+  if(length(labels) != p || anyNA(labels) || anyDuplicated(labels) || any(!nzchar(labels))) {
+    stop("Canonical vertex names must be unique and nonempty.")
+  }
+  for(n in c("mean", "sd")) {
+    x = hp[[n]]
+    if(nrow(x) != p) stop("Informed prior dimensions must match the data or graph.")
+    if(!is.null(dimnames(x))) {
+      if(!setequal(rownames(x), labels)) stop("Informed prior names must match the canonical vertices exactly.")
+      x = x[labels, labels, drop = FALSE]
+    }
+    hp[[n]] = x
+  }
+  c(hp, list(labels = labels))
 }

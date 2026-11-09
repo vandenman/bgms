@@ -37,12 +37,14 @@ class InformedNormalizer {
             E(N(k), k) = s(k);
         if (!arma::chol(LA, A, "lower"))
             throw InformedNormalizerFailure("precision Cholesky");
-        r.U = arma::solve(arma::trimatl(LA), E);
+        r.U = arma::solve(arma::trimatl(LA), E, arma::solve_opts::no_approx);
         arma::mat B = arma::eye(N.n_elem, N.n_elem) + 2 * beta_ * r.U.t() * r.U;
         if (!arma::chol(r.L, B, "lower"))
             throw InformedNormalizerFailure("row Cholesky");
         arma::vec v = m / s;
-        r.u = arma::solve(arma::trimatu(r.L.t()), arma::solve(arma::trimatl(r.L), v));
+        r.u = arma::solve(arma::trimatu(r.L.t()),
+            arma::solve(arma::trimatl(r.L), v, arma::solve_opts::no_approx),
+            arma::solve_opts::no_approx);
         r.logh = -arma::sum(arma::log(r.L.diag())) -
                  .5 * (arma::accu(arma::square(r.u - v)) +
                        2 * beta_ * arma::accu(arma::square(r.U * r.u)));
@@ -53,7 +55,10 @@ class InformedNormalizer {
     arma::vec draw(const Row &r, SafeRNG &rng) const {
         if (r.u.is_empty())
             return arma::vec();
-        return r.u + arma::solve(arma::trimatu(r.L.t()), arma_rnorm_vec(rng, r.u.n_elem));
+        arma::vec z = r.u + arma::solve(arma::trimatu(r.L.t()),
+            arma_rnorm_vec(rng, r.u.n_elem), arma::solve_opts::no_approx);
+        if (!z.is_finite()) throw InformedNormalizerFailure("nonfinite conditional draw");
+        return z;
     }
     void rejuvenate(arma::mat &K, const arma::imat &G, SafeRNG &rng) const {
         const size_t p = K.n_rows;
@@ -129,6 +134,19 @@ class InformedNormalizer {
     }
 
   public:
+    Rcpp::List inspect_row(const arma::mat& A, const arma::vec& m,
+                           const arma::vec& s, double beta) {
+        beta_ = beta;
+        try {
+            Row r = row(A, arma::regspace<arma::uvec>(0, A.n_rows - 1), m, s);
+            arma::mat noise = arma::solve(arma::trimatu(r.L.t()),
+                arma::eye(s.n_elem, s.n_elem), arma::solve_opts::no_approx);
+            arma::mat scaled = arma::diagmat(s) * noise;
+            return Rcpp::List::create(Rcpp::Named("log_h") = r.logh,
+                Rcpp::Named("mean") = s % r.u,
+                Rcpp::Named("covariance") = scaled * scaled.t());
+        } catch (const std::exception& e) { throw InformedNormalizerFailure(e.what()); }
+    }
     bool active = false;
     long hits = 0, evaluations = 0;
     double largest_half_width = 0, seconds = 0;

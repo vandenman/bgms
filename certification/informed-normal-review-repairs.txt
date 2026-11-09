@@ -1,0 +1,148 @@
+Review repairs for feature/informed_priors
+=========================================
+
+Scope
+-----
+Responds to bgms_informed_priors_review_61342de.txt and its chat summary.
+The original implementation report describes historical evidence; this report
+records the subsequent repairs and additional checks. Neither report is a
+uniform accuracy guarantee over all accepted prior matrices.
+
+Repairs
+-------
+1. The conjugate edge move evaluates the integrated Gaussian mass directly,
+   with log1p, before adding graph-prior odds and normalizer differences.
+   It no longer subtracts the two large Gaussian log ordinates at zero.
+   The same stable calculation covers the conditional Cauchy mixture;
+   Gamma-diagonal corrections and reciprocal death probabilities remain.
+2. All production normalizer solves disable Armadillo's approximate fallback.
+   Unresolved solves and nonfinite draws propagate as normalizer failures.
+   The extreme heterogeneous row/star reproductions must either agree with
+   their independent anchors or fail explicitly; they cannot silently drop
+   a Gaussian direction and cache a successful potential.
+3. The independent R and C++ references calculate the candidate-edge Schur
+   ratio directly. They do not subtract two completed-square log masses.
+   Their numerical failures and invalid masses produce an inconclusive
+   reference, not a resolved zero-error answer. The reference code does not
+   call the production integrated-mass helper.
+4. Context-aware alignment is shared by fitting, prior sampling, and reference
+   evaluation. Data/graph names take precedence; absent graph names, prior
+   sampling uses mean names, then SD names, then positional order. Unnamed
+   matrices preserve their positional meaning. This is documented in the
+   sample_ggm_prior help page.
+
+Fast regressions
+----------------
+- Positive-quadrature comparisons for the integrated mass, mixed signs,
+  nonzero natural means, ordinary SDs and SDs down to 2^-36.
+- The review's ill-conditioned diagonal row and full three-node star.
+- Narrow-SD reference checks against isolated-edge quadrature and an
+  independently coded R candidate-mass expression.
+- All four named/unnamed prior combinations, independently reordered named
+  matrices, identical reference output under equivalent storage orders,
+  and prior sampling with an unnamed mean but named SD matrix.
+- 192 constrained finite-difference gradient checks: all 64 four-node graphs
+  with heterogeneous signed means/SDs and three diagonal shapes.
+- Actual public-fit failure and actual C++ parallel-runner fatal status.
+  A real successful result and real fatal result are supplied together to
+  the R dispatcher (only dispatch is mocked) to verify whole-fit rejection.
+
+Standalone validation
+---------------------
+Run R from the project root. Install first with R CMD INSTALL . (no preclean).
+Use OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 when running these scripts.
+
+  Rscript tests/validation/informed-normal-narrow.R
+  Rscript tests/validation/informed-normal-prior.R
+  Rscript tests/validation/informed-normal-posterior.R
+  Rscript tests/validation/informed-normal-graph-law.R
+  Rscript tests/validation/informed-normal-heldout.R
+  Rscript tests/validation/informed-normal-stress.R
+  Rscript tests/validation/informed-normal-enumeration.R
+
+The held-out script checks all 12 neighboring pairs at p=3 and all 192 at p=4,
+including cycles and complete graphs. It separately checks graph-law TV,
+heterogeneous star anchors at p=3/5/10/20, and path-to-cycle ratios at p=5/10/20.
+The stress script uses stronger signed means and disparate SDs on stars in
+both vertex orders and on a triangle. These scripts retain the ratio gate
+(error + reference allowance <= .003 nat), reference half-width <= .0005,
+and graph-law TV upper bound <= .005. The enumeration script compares the
+sampled complete p=3 posterior graph law and PIPs with independent references.
+Reference intervals are nominal batch-means intervals with the displayed
+comparison adjustment. SMC's internal half-width alone is not certification.
+
+Limitations and exploratory failures
+------------------------------------
+A p=3 posterior enumeration with inclusion probability .5, very narrow
+near-zero priors, and 4 x 200000 retained iterations did not resolve the joint
+graph law: TV estimate .006887, upper bound .027183. PIP point estimates were
+close to their references. Nearly deterministic edge flips mix graph patterns
+slowly in this configuration. It is not counted as a pass. The default
+posterior enumeration uses probability .3; reproduce the .5 configuration by
+setting BGMS_ENUM_PROB=0.5. BGMS_ENUM_ITER controls retained draws per chain.
+This diagnostic does not establish a normalizer bias, and it does not justify
+weakening the graph-law gate.
+
+Large dense graphs and strong incompatible cycles at p=10/20 still lack a
+broad independent certification bank. Large-p checks here concern explicitly
+listed sparse configurations, not arbitrary priors or graphs. Extreme scale
+heterogeneity may now produce an intentional whole-fit numerical failure.
+The hierarchical prior continues to divide the within-graph density by Z(G);
+Z(G) is not absorbed into the Bernoulli graph prior.
+
+Measured results (2026-11-09)
+-----------------------------
+- Review regression file: 606 passing assertions, no warnings or skips.
+- Narrow-prior bank: all 12 configurations passed. Maximum inclusion error
+  plus simultaneous nominal allowance = .0020501 (gate .005). At SD=1e-9,
+  requested probabilities .1/.3/.5/.9 yielded .100140/.300141/.499475/.900123.
+- Ordinary prior-only checks, including Beta(2,3)-Bernoulli: all passed;
+  maximum inclusion error plus allowance = .0020373.
+- Original p=2 posterior quadrature: expected PIP .4637842, sampled .4637163;
+  error plus allowance .0005206.
+- Original homogeneous p=3 graph bank: TV upper .0009474; maximum neighboring
+  ratio discrepancy plus reference allowance .0010494; all 12 ratios pass.
+- Heterogeneous p=3 bank: TV upper .0002105; maximum neighboring-ratio upper
+  .0002482; largest reference half-width .0001052; all 12 ratios pass.
+- Exact heterogeneous stars, p=3/5/10/20: absolute log-potential errors
+  .0000359/.0001365/.0000035/.0001865.
+- Stronger heterogeneous p=3 stars, both vertex orders: errors .0002500 and
+  .0000015. Strong triangle ratio error plus allowance .0006519; reference
+  half-width .0001997.
+- The SD=2^-36 reference with 4 x 10000 draws gave log ratio 1.277272 with
+  half-width .011383 and status inconclusive, consistent with quadrature
+  1.273924. It no longer reports log ratio zero with zero uncertainty.
+
+The initial p=.3 posterior enumeration budget of 4 x 200000 draws narrowly
+missed the TV gate (upper .005030). The final script doubles the retained
+budget to 4 x 400000 without changing the gate. To reproduce the exploratory
+p=.5 result quoted above, set BGMS_ENUM_PROB=0.5 BGMS_ENUM_ITER=200000.
+- Final p=3 posterior enumeration (Bernoulli probability .3, 4 x 400000
+  retained draws): TV estimate .0008226, TV upper .0042405; maximum PIP
+  error upper .0066845. Both gates passed. Reference allowance .0003090.
+- Full default test suite: 8610 passes, no failures or warnings, 282 existing
+  dependency/tier skips. The review regression file alone has 606 passes.
+- Stronger heterogeneous p=5 stars, both vertex orders: absolute errors
+  .0003441 and .0003202. The complete stress script passed on a clean rerun.
+- Heterogeneous path-to-cycle comparisons at p=5/10/20: ratio-error upper
+  bounds .0003986/.0002623/.0001359; reference half-widths
+  .0000206/.0000221/.0000204. All passed.
+- Final posterior intervals use a single nominal 99% Bonferroni family
+  covering 14 reference ratios and 8 sampled graph probabilities.
+- Heterogeneous p=4 bank: all 192 neighboring comparisons passed; maximum
+  ratio-error upper .0005801, largest reference half-width .0001311;
+  graph-law TV estimate .0000489 and upper .0005186.
+
+Execution note: the held-out enumeration and cycle blocks were exercised in
+separate runs. Formatting the file during the first run caused a trailing
+parser error after the enumeration block and its numerical gates completed.
+The final file was parsed successfully; the cycle block also completed
+successfully in a separate process. Use Rscript -e
+'source("tests/validation/informed-normal-heldout.R")' to parse the whole
+script before execution. No numerical failure is counted as a pass.
+
+Final installation completed successfully without --preclean. Re-running the
+informed-prior tests against that installation gave 1058 passes, zero failures
+or warnings, and one explicitly disabled slow-test skip. Fast reproduction:
+
+  Rscript -e 'testthat::test_dir("tests/testthat", filter="informed-normal", package="bgms", load_package="installed", stop_on_failure=TRUE)'
